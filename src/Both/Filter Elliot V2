@@ -1,0 +1,326 @@
+
+true==function()
+{
+    /*
+    ================================================================
+    E3C-L
+    ELLIOTT GOLDEN LAUNCH
+
+    ONLINE WAVE-3 TRIGGER
+
+    هدف:
+    شناسایی لحظه‌ای که یک ساختار احتمالی
+    Wave 1 -> Wave 2
+    شروع به Transition به Wave 3 می‌کند.
+
+    این فیلتر:
+    - آنلاین است
+    - سیگنال خرید قطعی نیست
+    - برای شکار Early Wave-3 Momentum طراحی شده
+    - نقدشوندگی و حجم را لحاظ می‌کند
+    - از شکست ساختار Wave 2 جلوگیری می‌کند
+    ================================================================
+    */
+
+
+    if(typeof [ih]=="undefined")
+        return false;
+
+    if([ih].length<80)
+        return false;
+
+
+    var N=Math.min([ih].length,120);
+
+    var P=[];
+    var H=[];
+    var L=[];
+    var V=[];
+
+
+    for(var i=0;i<N;i++)
+    {
+        P[i]=[ih][i].PClosing;
+        H[i]=[ih][i].PriceMax;
+        L[i]=[ih][i].PriceMin;
+        V[i]=[ih][i].QTotTran5J;
+
+        if(P[i]<=0 || H[i]<=0 || L[i]<=0)
+            return false;
+    }
+
+
+    // ------------------------------------------------
+    // Pivotها
+    // ------------------------------------------------
+
+    var isLow=function(i)
+    {
+        if(i<3 || i>N-4)
+            return false;
+
+        return(
+            L[i]<=L[i-1] &&
+            L[i]<=L[i-2] &&
+            L[i]<=L[i+1] &&
+            L[i]<=L[i+2]
+        );
+    };
+
+
+    var isHigh=function(i)
+    {
+        if(i<3 || i>N-4)
+            return false;
+
+        return(
+            H[i]>=H[i-1] &&
+            H[i]>=H[i-2] &&
+            H[i]>=H[i+1] &&
+            H[i]>=H[i+2]
+        );
+    };
+
+
+    var p2=-1;
+    var p1=-1;
+    var p0=-1;
+
+
+    for(var i=4;i<N-4;i++)
+    {
+        if(isLow(i))
+        {
+            if(p2==-1)
+                p2=i;
+            else if(p1==-1)
+                p1=i;
+            else
+            {
+                p0=i;
+                break;
+            }
+        }
+    }
+
+
+    if(p0==-1 || p1==-1 || p2==-1)
+        return false;
+
+
+    // ------------------------------------------------
+    // Wave 1 High
+    // ------------------------------------------------
+
+    var w1=-1;
+
+    for(var i=p1+1;i<p0;i++)
+    {
+        if(isHigh(i))
+        {
+            w1=i;
+            break;
+        }
+    }
+
+
+    if(w1==-1)
+        return false;
+
+
+    var wave0=L[p0];
+    var wave1=H[w1];
+    var wave2=L[p1];
+
+    var current=P[0];
+
+
+    // ------------------------------------------------
+    // Wave 1 معتبر
+    // ------------------------------------------------
+
+    if(wave1<=wave0)
+        return false;
+
+
+    var wave1Move=
+        (wave1-wave0)/wave0;
+
+
+    if(wave1Move<0.05)
+        return false;
+
+
+    // ------------------------------------------------
+    // Wave 2 نباید Origin را بشکند
+    // ------------------------------------------------
+
+    if(wave2<=wave0)
+        return false;
+
+
+    // ------------------------------------------------
+    // Retracement
+    // ------------------------------------------------
+
+    var retracement=
+        (wave1-wave2)/
+        (wave1-wave0);
+
+
+    if(retracement<=0 || retracement>=1)
+        return false;
+
+
+    // ------------------------------------------------
+    // ناحیه اصلاحی مناسب
+    // ------------------------------------------------
+
+    if(
+        retracement<0.382 ||
+        retracement>0.786
+    )
+        return false;
+
+
+    // ------------------------------------------------
+    // قیمت باید واقعاً از Wave 2 فاصله گرفته باشد
+    // اما هنوز بیش از حد فرار نکرده باشد.
+    // ------------------------------------------------
+
+    var recovery=
+        (current-wave2)/
+        wave2;
+
+
+    if(recovery<0.01)
+        return false;
+
+    if(recovery>0.15)
+        return false;
+
+
+    // ------------------------------------------------
+    // عبور از Highهای کوتاه‌مدت
+    // ------------------------------------------------
+
+    var localHigh=-1;
+
+    for(var i=1;i<=12 && i<N;i++)
+    {
+        if(H[i]>current)
+            localHigh=H[i];
+    }
+
+
+    /*
+    اگر سقف نزدیک هنوز بالای قیمت است،
+    Transition کامل نشده.
+    */
+
+    if(localHigh>0 && current<localHigh)
+        return false;
+
+
+    // ------------------------------------------------
+    // حجم
+    // ------------------------------------------------
+
+    var currentVol=V[0];
+
+    var avgVol=0;
+
+    for(var i=1;i<=20 && i<N;i++)
+        avgVol+=V[i];
+
+    avgVol/=20;
+
+
+    if(avgVol<=0)
+        return false;
+
+
+    var volumeRatio=
+        currentVol/avgVol;
+
+
+    if(volumeRatio<1.20)
+        return false;
+
+
+    // ------------------------------------------------
+    // قدرت قیمت
+    // ------------------------------------------------
+
+    var closePosition=
+        (current-L[0])/
+        (H[0]-L[0]);
+
+
+    if(H[0]==L[0])
+        return false;
+
+
+    if(closePosition<0.60)
+        return false;
+
+
+    // ------------------------------------------------
+    // مومنتوم کوتاه مدت
+    // ------------------------------------------------
+
+    if(P[0]<=P[3])
+        return false;
+
+
+    if(P[0]<=P[5])
+        return false;
+
+
+    // ------------------------------------------------
+    // نقدشوندگی
+    // ------------------------------------------------
+
+    var avgTrades=0;
+
+    for(var i=1;i<=20 && i<N;i++)
+    {
+        if(typeof [ih][i].ZTotTran5J!="undefined")
+            avgTrades+= [ih][i].ZTotTran5J;
+    }
+
+    avgTrades/=20;
+
+
+    if(
+        typeof [ih][0].ZTotTran5J!="undefined" &&
+        avgTrades>0
+    )
+    {
+        if([ih][0].ZTotTran5J<avgTrades*0.70)
+            return false;
+    }
+
+
+    // ------------------------------------------------
+    // عدم شکست ساختار
+    // ------------------------------------------------
+
+    if(current<=wave2)
+        return false;
+
+
+    // ------------------------------------------------
+    // فاصله از Wave 1
+    //
+    // اگر کاملاً از Wave 1 عبور کرده،
+    // دیگر Early Launch نیست.
+    // ------------------------------------------------
+
+    if(current>wave1*1.10)
+        return false;
+
+
+    return true;
+
+}()

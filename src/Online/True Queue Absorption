@@ -1,0 +1,600 @@
+
+true==function()
+{
+    /*
+    ================================================================
+    FILTER 07
+    TQAE
+    TRUE QUEUE ABSORPTION ENGINE
+
+    هدف:
+    شناسایی شدیدترین کاندیدهای برگشت از فشار فروش/صف فروش،
+    با تمرکز بر جذب عرضه، بازسازی تقاضا و خروج قیمت از کف.
+
+    IMPORTANT:
+    در نسخه فعلی TSCTMC، تاریخچه Tick-by-Tick صف فروش در [ih]
+    وجود ندارد.
+
+    بنابراین:
+    TQAE فعلی = Queue Absorption Proxy Engine
+
+    یعنی به جای ادعای مصرف تاریخی صف، چند شاهد مستقل و همزمان
+    از جذب عرضه را ترکیب می کند.
+
+    اگر در آینده snapshotهای متوالی دفتر سفارش در دسترس باشد،
+    بخش Dynamic Queue Consumption باید جایگزین Proxy شود.
+
+    ================================================================
+    */
+
+
+    // ============================================================
+    // 1) BASIC DATA VALIDATION
+    // ============================================================
+
+    if(typeof [ih]=="undefined")
+        return false;
+
+    if([ih].length<20)
+        return false;
+
+    if(typeof tmin=="undefined" ||
+       typeof tmax=="undefined")
+        return false;
+
+    if(tmin<=0 || tmax<=tmin)
+        return false;
+
+    if(pl<=0 || pc<=0 || py<=0)
+        return false;
+
+    if(tvol<=0 || tno<=0)
+        return false;
+
+
+    // ============================================================
+    // 2) HISTORICAL LIQUIDITY / TRADABILITY
+    // ============================================================
+
+    if([ih].length<20)
+        return false;
+
+    if([is1]<=0 || [is5]<=0 || [is9]<=0)
+        return false;
+
+    if([is40]<70)
+        return false;
+
+    if([is41]<65)
+        return false;
+
+
+    // ============================================================
+    // 3) CURRENT REAL-MONEY FLOW
+    // ============================================================
+
+    var buyI=(ct).Buy_I_Volume;
+    var sellI=(ct).Sell_I_Volume;
+
+    var buyC=(ct).Buy_CountI;
+    var sellC=(ct).Sell_CountI;
+
+
+    if(buyI<=0 || sellI<=0 ||
+       buyC<=0 || sellC<=0)
+        return false;
+
+
+    var buyPer=buyI/buyC;
+    var sellPer=sellI/sellC;
+
+
+    if(sellPer<=0)
+        return false;
+
+
+    var buyerPower=buyPer/sellPer;
+
+    var netI=buyI-sellI;
+
+    var netRatio=netI/buyI;
+
+
+    // جذب واقعی بدون تقاضای حقیقی تایید نمی شود.
+    if(netI<=0)
+        return false;
+
+
+    // ============================================================
+    // 4) DYNAMIC PRICE BAND
+    // ============================================================
+
+    var band=tmax-tmin;
+
+    if(band<=0)
+        return false;
+
+
+    var fromFloor=(pl-tmin)/band;
+    var fromCeiling=(tmax-pl)/band;
+
+
+    // فقط در 25 درصد پایینی دامنه مجاز
+    if(fromFloor<0 || fromFloor>0.25)
+        return false;
+
+
+    // اگر خیلی نزدیک سقف هستیم، دیگر شکار برگشت اولیه نیست.
+    if(fromCeiling<0.10)
+        return false;
+
+
+    // ============================================================
+    // 5) CURRENT ORDER BOOK
+    // ============================================================
+
+    var bidVol=
+        qd1+qd2+qd3+qd4+qd5;
+
+    var askVol=
+        qo1+qo2+qo3+qo4+qo5;
+
+
+    if(bidVol<=0 || askVol<=0)
+        return false;
+
+
+    var bookRatio=bidVol/askVol;
+
+
+    // ============================================================
+    // 6) ASK CONCENTRATION
+    // ============================================================
+
+    var ask1Ratio=qo1/askVol;
+
+    var askTop3=qo1+qo2+qo3;
+
+    var askTop3Ratio=askTop3/askVol;
+
+
+    // عرضه باید واقعاً قابل توجه باشد.
+    if(askTop3Ratio<0.35)
+        return false;
+
+
+    // ============================================================
+    // 7) BID RECONSTRUCTION
+    // ============================================================
+
+    var bidTop3=qd1+qd2+qd3;
+
+    var bidTop3Ratio=bidTop3/bidVol;
+
+
+    // ============================================================
+    // 8) ORDER BOOK ABSORPTION PROXY
+    // ============================================================
+
+    var absorptionBookScore=0;
+
+
+    if(bookRatio>=1.20)
+        absorptionBookScore+=25;
+
+    else if(bookRatio>=1.00)
+        absorptionBookScore+=21;
+
+    else if(bookRatio>=0.80)
+        absorptionBookScore+=17;
+
+    else if(bookRatio>=0.60)
+        absorptionBookScore+=12;
+
+    else if(bookRatio>=0.40)
+        absorptionBookScore+=7;
+
+
+    // تقاضا نباید فقط در عمق دفتر باشد.
+    if(bidTop3Ratio>=0.70)
+        absorptionBookScore+=10;
+
+    else if(bidTop3Ratio>=0.55)
+        absorptionBookScore+=7;
+
+    else if(bidTop3Ratio>=0.40)
+        absorptionBookScore+=4;
+
+
+    // ============================================================
+    // 9) FIRST LEVEL DEFENSE
+    // ============================================================
+
+    var firstRatio=0;
+
+    if(qo1>0)
+        firstRatio=qd1/qo1;
+
+
+    var firstDefense=0;
+
+
+    if(firstRatio>=2.00)
+        firstDefense=20;
+
+    else if(firstRatio>=1.50)
+        firstDefense=17;
+
+    else if(firstRatio>=1.00)
+        firstDefense=14;
+
+    else if(firstRatio>=0.70)
+        firstDefense=10;
+
+    else if(firstRatio>=0.40)
+        firstDefense=5;
+
+
+    // ============================================================
+    // 10) PRICE ESCAPE CONFIRMATION
+    // ============================================================
+
+    var escape=0;
+
+
+    if(pl>tmin)
+        escape+=10;
+
+    if(pmax>tmin)
+        escape+=10;
+
+    if(pl>=pc)
+        escape+=7;
+
+    if(pl>py)
+        escape+=7;
+
+    if(pmax>pl)
+        escape+=6;
+
+
+    // باید حداقل نشانه خروج از کف وجود داشته باشد.
+    if(escape<17)
+        return false;
+
+
+    // ============================================================
+    // 11) INTRADAY RECOVERY
+    // ============================================================
+
+    var recovery=0;
+
+
+    if(pmax>pmin)
+    {
+        recovery=
+        ((pl-pmin)/(pmax-pmin))*100;
+    }
+
+
+    if(recovery<20)
+        return false;
+
+
+    // ============================================================
+    // 12) CURRENT PARTICIPATION VS HISTORY
+    // ============================================================
+
+    var vSum=0;
+    var nSum=0;
+    var valid=0;
+
+
+    for(var i=0;i<20;i++)
+    {
+        if(typeof [ih][i]!="undefined")
+        {
+            if([ih][i].QTotTran5J>0)
+            {
+                vSum += [ih][i].QTotTran5J;
+            }
+
+            if([ih][i].ZTotTran>0)
+            {
+                nSum += [ih][i].ZTotTran;
+            }
+
+            valid++;
+        }
+    }
+
+
+    if(valid<15)
+        return false;
+
+
+    var avgV=vSum/valid;
+    var avgN=nSum/valid;
+
+
+    if(avgV<=0 || avgN<=0)
+        return false;
+
+
+    var volumeRatio=tvol/avgV;
+    var tradeRatio=tno/avgN;
+
+
+    // ============================================================
+    // 13) PARTICIPATION QUALITY
+    // ============================================================
+
+    var participation=0;
+
+
+    if(volumeRatio>=2.00 &&
+       tradeRatio>=1.50)
+        participation=20;
+
+    else if(volumeRatio>=1.50 &&
+            tradeRatio>=1.20)
+        participation=17;
+
+    else if(volumeRatio>=1.00 &&
+            tradeRatio>=1.00)
+        participation=14;
+
+    else if(volumeRatio>=0.60 &&
+            tradeRatio>=0.70)
+        participation=9;
+
+    else
+        participation=4;
+
+
+    // ============================================================
+    // 14) BUYER POWER SCORE
+    // ============================================================
+
+    var buyerScore=0;
+
+
+    if(buyerPower>=3.50)
+        buyerScore=25;
+
+    else if(buyerPower>=3.00)
+        buyerScore=22;
+
+    else if(buyerPower>=2.50)
+        buyerScore=19;
+
+    else if(buyerPower>=2.00)
+        buyerScore=16;
+
+    else if(buyerPower>=1.70)
+        buyerScore=12;
+
+    else if(buyerPower>=1.50)
+        buyerScore=8;
+
+    else
+        return false;
+
+
+    // ============================================================
+    // 15) REAL MONEY SCORE
+    // ============================================================
+
+    var moneyScore=0;
+
+
+    if(netRatio>=0.35)
+        moneyScore=25;
+
+    else if(netRatio>=0.25)
+        moneyScore=22;
+
+    else if(netRatio>=0.18)
+        moneyScore=19;
+
+    else if(netRatio>=0.12)
+        moneyScore=15;
+
+    else if(netRatio>=0.08)
+        moneyScore=10;
+
+    else
+        return false;
+
+
+    // ============================================================
+    // 16) RECOVERY SCORE
+    // ============================================================
+
+    var recoveryScore=0;
+
+
+    if(recovery>=70)
+        recoveryScore=15;
+
+    else if(recovery>=55)
+        recoveryScore=13;
+
+    else if(recovery>=40)
+        recoveryScore=11;
+
+    else if(recovery>=30)
+        recoveryScore=8;
+
+    else
+        recoveryScore=5;
+
+
+    // ============================================================
+    // 17) ABSORPTION CONVERGENCE
+    // ============================================================
+
+    var convergence=0;
+
+
+    if(bookRatio>=0.70)
+        convergence++;
+
+    if(firstRatio>=0.70)
+        convergence++;
+
+    if(buyerPower>=2.00)
+        convergence++;
+
+    if(netRatio>=0.12)
+        convergence++;
+
+    if(pl>tmin)
+        convergence++;
+
+    if(pmax>tmin)
+        convergence++;
+
+    if(recovery>=30)
+        convergence++;
+
+    if(volumeRatio>=1.00)
+        convergence++;
+
+    if(tradeRatio>=1.00)
+        convergence++;
+
+
+    // حداقل شش شاهد مستقل
+    if(convergence<6)
+        return false;
+
+
+    // ============================================================
+    // 18) HISTORICAL STABILITY
+    // ============================================================
+
+    var tradedDays=0;
+    var positiveDays=0;
+
+
+    for(var j=0;j<20;j++)
+    {
+        if(typeof [ih][j]!="undefined")
+        {
+            if([ih][j].ZTotTran>0)
+                tradedDays++;
+
+            if([ih][j].PClosing>[ih][j].PriceYesterday)
+                positiveDays++;
+        }
+    }
+
+
+    if(tradedDays<15)
+        return false;
+
+
+    var historyScore=0;
+
+
+    if(tradedDays>=20)
+        historyScore+=10;
+
+    else if(tradedDays>=18)
+        historyScore+=8;
+
+    else
+        historyScore+=5;
+
+
+    if(positiveDays>=12)
+        historyScore+=8;
+
+    else if(positiveDays>=9)
+        historyScore+=5;
+
+    else
+        historyScore+=2;
+
+
+    // ============================================================
+    // 19) ANTI-FAKE PENALTY
+    // ============================================================
+
+    var penalty=0;
+
+
+    // قیمت هنوز دقیقاً در کف است و هیچ خروجی رخ نداده
+    if(pl==tmin &&
+       pmax==tmin)
+        penalty+=20;
+
+
+    // تقاضا ضعیف
+    if(bookRatio<0.50)
+        penalty+=10;
+
+
+    // قدرت خرید ناکافی
+    if(buyerPower<1.70)
+        penalty+=10;
+
+
+    // پول حقیقی ضعیف
+    if(netRatio<0.10)
+        penalty+=10;
+
+
+    // قیمت بیش از حد از کف دور شده
+    if(fromFloor>0.20)
+        penalty+=10;
+
+
+    // ============================================================
+    // 20) FINAL TQAE SCORE
+    // ============================================================
+
+    var finalScore=
+        absorptionBookScore
+        +firstDefense
+        +escape
+        +participation
+        +buyerScore
+        +moneyScore
+        +recoveryScore
+        +historyScore
+        -penalty;
+
+
+    // ============================================================
+    // 21) FINAL QUALITY GATE
+    // ============================================================
+
+    if(finalScore<150)
+        return false;
+
+
+    // ============================================================
+    // 22) FINAL MULTI-SIGNAL CONFIRMATION
+    // ============================================================
+
+    if(buyerPower<1.70)
+        return false;
+
+    if(netRatio<0.08)
+        return false;
+
+    if(bookRatio<0.40)
+        return false;
+
+    if(convergence<6)
+        return false;
+
+    if(recovery<20)
+        return false;
+
+
+    return true;
+
+}()

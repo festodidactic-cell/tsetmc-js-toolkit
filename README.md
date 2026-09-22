@@ -60,3 +60,11 @@ Update README with license information
 ## License
 
 This project is released under the MIT License.
+## Online Filters
+
+Includes real-time screening modules for:
+- Momentum breakout
+- Smart money entry
+- Volume spike detection
+- Bullish reversal
+- Tight range breakout

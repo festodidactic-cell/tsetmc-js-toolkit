@@ -1,0 +1,802 @@
+true==function()
+{
+    /*
+    ================================================================
+    FILTER 05
+    LIVE MOMENTUM TRANSITION DETECTOR - LMTD
+
+    هدف:
+    شناسایی نمادهایی که ساختار تاریخی سالم دارند و در جریان معاملات
+    جاری، نشانه های همزمانی از تغییر رژیم معاملاتی به سمت تقاضای
+    قدرتمند ظاهر شده است.
+
+    این فیلتر:
+    - آنلاین و مناسب زمان معاملات است.
+    - برای شکار شروع حرکت طراحی شده، نه شکار صف خرید.
+    - از داده جاری + سابقه روزانه + دفتر سفارش استفاده می کند.
+    - امتیازدهی چندعاملی دارد.
+    - برای جلوگیری از Chase، نزدیکی بیش از حد به سقف روزانه/محدوده
+      مجاز را جریمه می کند.
+
+    خروجی = کاندید بررسی فوری
+    خروجی != دستور خرید
+
+    ================================================================
+    */
+
+
+    // ============================================================
+    // 1. DATA VALIDATION
+    // ============================================================
+
+    if(typeof [ih][20]=="undefined")
+        return false;
+
+    if(typeof [ih][0]=="undefined")
+        return false;
+
+    if(pc<=0 || pl<=0 || py<=0)
+        return false;
+
+    if(tvol<=0 || tno<=0)
+        return false;
+
+    if((ct).Buy_CountI<=0 ||
+       (ct).Sell_CountI<=0)
+        return false;
+
+
+    // ============================================================
+    // 2. HISTORICAL FUNCTIONS
+    // ============================================================
+
+    var AvgVolume=function(n)
+    {
+        var sum=0;
+        var c=0;
+
+        for(var i=0;i<n;i++)
+        {
+            if(typeof [ih][i]!="undefined" &&
+               [ih][i].QTotTran5J>0)
+            {
+                sum += [ih][i].QTotTran5J;
+                c++;
+            }
+        }
+
+        if(c==0)
+            return 0;
+
+        return sum/c;
+    };
+
+
+    var AvgTrades=function(n)
+    {
+        var sum=0;
+        var c=0;
+
+        for(var i=0;i<n;i++)
+        {
+            if(typeof [ih][i]!="undefined" &&
+               [ih][i].ZTotTran>0)
+            {
+                sum += [ih][i].ZTotTran;
+                c++;
+            }
+        }
+
+        if(c==0)
+            return 0;
+
+        return sum/c;
+    };
+
+
+    var MinPrice=function(n)
+    {
+        var min=999999999999;
+        var c=0;
+
+        for(var i=0;i<n;i++)
+        {
+            if(typeof [ih][i]!="undefined" &&
+               [ih][i].PriceMin>0)
+            {
+                if([ih][i].PriceMin<min)
+                    min=[ih][i].PriceMin;
+
+                c++;
+            }
+        }
+
+        if(c==0)
+            return 0;
+
+        return min;
+    };
+
+
+    var MaxPrice=function(n)
+    {
+        var max=0;
+        var c=0;
+
+        for(var i=0;i<n;i++)
+        {
+            if(typeof [ih][i]!="undefined" &&
+               [ih][i].PriceMax>0)
+            {
+                if([ih][i].PriceMax>max)
+                    max=[ih][i].PriceMax;
+
+                c++;
+            }
+        }
+
+        if(c==0)
+            return 0;
+
+        return max;
+    };
+
+
+    var PositiveDays=function(n)
+    {
+        var c=0;
+
+        for(var i=0;i<n;i++)
+        {
+            if(typeof [ih][i]!="undefined" &&
+               [ih][i].PClosing>0 &&
+               [ih][i].PriceYesterday>0 &&
+               [ih][i].PClosing>[ih][i].PriceYesterday)
+            {
+                c++;
+            }
+        }
+
+        return c;
+    };
+
+
+    var UpVolume=function(n)
+    {
+        var sum=0;
+
+        for(var i=0;i<n;i++)
+        {
+            if(typeof [ih][i]!="undefined" &&
+               [ih][i].PClosing>[ih][i].PriceYesterday)
+            {
+                sum += [ih][i].QTotTran5J;
+            }
+        }
+
+        return sum;
+    };
+
+
+    var DownVolume=function(n)
+    {
+        var sum=0;
+
+        for(var i=0;i<n;i++)
+        {
+            if(typeof [ih][i]!="undefined" &&
+               [ih][i].PClosing<[ih][i].PriceYesterday)
+            {
+                sum += [ih][i].QTotTran5J;
+            }
+        }
+
+        return sum;
+    };
+
+
+    // ============================================================
+    // 3. HISTORICAL LIQUIDITY
+    // ============================================================
+
+    var av20=AvgVolume(20);
+    var av30=AvgVolume(30);
+
+    var at20=AvgTrades(20);
+    var at30=AvgTrades(30);
+
+    if(av20<=0 || av30<=0)
+        return false;
+
+    if(at20<=0 || at30<=0)
+        return false;
+
+
+    // سهم نباید از نظر سابقه معاملات ضعیف باشد
+    if([is1]<=0 || [is5]<=0)
+        return false;
+
+    if([is40]<70)
+        return false;
+
+    if([is41]<60)
+        return false;
+
+
+    // ============================================================
+    // 4. CURRENT BUYER POWER
+    // ============================================================
+
+    var buyPer=
+    (ct).Buy_I_Volume/(ct).Buy_CountI;
+
+    var sellPer=
+    (ct).Sell_I_Volume/(ct).Sell_CountI;
+
+    if(buyPer<=0 || sellPer<=0)
+        return false;
+
+    var buyerPower=
+    buyPer/sellPer;
+
+
+    // حداقل قدرت لازم
+    if(buyerPower<1.35)
+        return false;
+
+
+    // ============================================================
+    // 5. CURRENT REAL MONEY FLOW
+    // ============================================================
+
+    var realBuy=(ct).Buy_I_Volume;
+    var realSell=(ct).Sell_I_Volume;
+
+    var realNet=realBuy-realSell;
+
+    if(realNet<=0)
+        return false;
+
+
+    var realFlowRatio=
+    realNet/realBuy;
+
+
+    // ============================================================
+    // 6. BUYER / SELLER COUNT IMBALANCE
+    // ============================================================
+
+    var buyerCount=(ct).Buy_CountI;
+    var sellerCount=(ct).Sell_CountI;
+
+    if(buyerCount<=0 || sellerCount<=0)
+        return false;
+
+    var countRatio=
+    buyerCount/sellerCount;
+
+
+    // ============================================================
+    // 7. CURRENT MARKET PARTICIPATION
+    // ============================================================
+
+    var volumeRatio=
+    tvol/av30;
+
+    var tradeRatio=
+    tno/at30;
+
+
+    if(volumeRatio<0.25)
+        return false;
+
+    if(tradeRatio<0.25)
+        return false;
+
+
+    // ============================================================
+    // 8. PRICE TRANSITION
+    // ============================================================
+
+    var openStrength=0;
+
+    if(pf>=py)
+        openStrength+=1;
+
+    if(pl>pf)
+        openStrength+=1;
+
+    if(pl>=pc)
+        openStrength+=1;
+
+    if(pl>py)
+        openStrength+=1;
+
+
+    // قیمت جاری نباید در حال از دست دادن قدرت باشد
+    if(pl<pc*0.995)
+        return false;
+
+
+    // ============================================================
+    // 9. INTRADAY POSITION
+    // ============================================================
+
+    var intradayPosition=50;
+
+    if(pmax>pmin && pmax>0 && pmin>0)
+    {
+        intradayPosition=
+        ((pl-pmin)/(pmax-pmin))*100;
+    }
+
+
+    if(intradayPosition<50)
+        return false;
+
+
+    // ============================================================
+    // 10. ORDER BOOK IMBALANCE
+    // ============================================================
+
+    var bidVol=
+    qd1+qd2+qd3+qd4+qd5;
+
+    var askVol=
+    qo1+qo2+qo3+qo4+qo5;
+
+
+    if(bidVol<=0 || askVol<=0)
+        return false;
+
+
+    var bookRatio=
+    bidVol/askVol;
+
+
+    // حداقل تعادل لازم
+    if(bookRatio<0.90)
+        return false;
+
+
+    // ============================================================
+    // 11. TOP OF BOOK QUALITY
+    // ============================================================
+
+    var nearBid=qd1;
+    var nearAsk=qo1;
+
+    var topRatio=1;
+
+    if(nearAsk>0)
+        topRatio=nearBid/nearAsk;
+
+
+    // ============================================================
+    // 12. AVOID LOCKED BUY QUEUE
+    // ============================================================
+
+    if(pmax>=tmax &&
+       pl>=tmax*0.995)
+        return false;
+
+
+    if(pl>=tmax*0.985)
+        return false;
+
+
+    // ============================================================
+    // 13. HISTORICAL PRICE STRUCTURE
+    // ============================================================
+
+    var low30=MinPrice(30);
+    var low60=MinPrice(60);
+
+    var high30=MaxPrice(30);
+    var high60=MaxPrice(60);
+
+    if(low30<=0 ||
+       low60<=0 ||
+       high30<=0 ||
+       high60<=0)
+        return false;
+
+
+    // سهم نباید در کف شکسته شده باشد
+    if(pc<low30*0.985)
+        return false;
+
+
+    // ============================================================
+    // 14. SUPPORT DISTANCE
+    // ============================================================
+
+    var supportDistance=
+    ((pc-low30)/pc)*100;
+
+
+    // سهم نباید خیلی از محدوده حمایتی دور شده باشد
+    if(supportDistance>12)
+        return false;
+
+
+    // ============================================================
+    // 15. RESISTANCE DISTANCE
+    // ============================================================
+
+    var resistanceDistance=
+    ((high30-pc)/pc)*100;
+
+
+    if(resistanceDistance<0.7)
+        return false;
+
+    if(resistanceDistance>10)
+        return false;
+
+
+    // ============================================================
+    // 16. HISTORICAL VOLUME STRUCTURE
+    // ============================================================
+
+    var upVol=UpVolume(15);
+    var downVol=DownVolume(15);
+
+    var historicalVolumeRatio=1;
+
+    if(downVol>0)
+        historicalVolumeRatio=upVol/downVol;
+
+
+    // ============================================================
+    // 17. HISTORICAL POSITIVE DAY QUALITY
+    // ============================================================
+
+    var positive15=PositiveDays(15);
+    var positive30=PositiveDays(30);
+
+
+    // ============================================================
+    // 18. ACCUMULATION / COMPRESSION CHECK
+    // ============================================================
+
+    var compression=0;
+
+    var avgRange=0;
+    var rangeCount=0;
+
+    for(var i=0;i<20;i++)
+    {
+        if(typeof [ih][i]!="undefined" &&
+           [ih][i].PriceYesterday>0 &&
+           [ih][i].PriceMax>0 &&
+           [ih][i].PriceMin>0)
+        {
+            avgRange +=
+            ([ih][i].PriceMax-[ih][i].PriceMin)
+            /[ih][i].PriceYesterday;
+
+            rangeCount++;
+        }
+    }
+
+
+    if(rangeCount>0)
+        avgRange=avgRange/rangeCount;
+
+
+    for(var j=0;j<10;j++)
+    {
+        if(typeof [ih][j]!="undefined" &&
+           [ih][j].PriceYesterday>0)
+        {
+            var rr=
+            ([ih][j].PriceMax-[ih][j].PriceMin)
+            /[ih][j].PriceYesterday;
+
+            if(avgRange>0 && rr<=avgRange*0.75)
+                compression++;
+        }
+    }
+
+
+    // ============================================================
+    // 19. MOMENTUM TRANSITION SCORE
+    // ============================================================
+
+    var score=0;
+
+
+    // ------------------------------------------------------------
+    // A. BUYER POWER
+    // ------------------------------------------------------------
+
+    if(buyerPower>=3.0)
+        score+=18;
+    else if(buyerPower>=2.5)
+        score+=16;
+    else if(buyerPower>=2.0)
+        score+=13;
+    else if(buyerPower>=1.7)
+        score+=10;
+    else if(buyerPower>=1.5)
+        score+=7;
+    else
+        score+=4;
+
+
+    // ------------------------------------------------------------
+    // B. REAL MONEY
+    // ------------------------------------------------------------
+
+    if(realFlowRatio>=0.30)
+        score+=14;
+    else if(realFlowRatio>=0.20)
+        score+=11;
+    else if(realFlowRatio>=0.12)
+        score+=8;
+    else
+        score+=4;
+
+
+    // ------------------------------------------------------------
+    // C. BUYER COUNT
+    // ------------------------------------------------------------
+
+    if(countRatio>=1.50)
+        score+=8;
+    else if(countRatio>=1.25)
+        score+=6;
+    else if(countRatio>=1.05)
+        score+=4;
+
+
+    // ------------------------------------------------------------
+    // D. ORDER BOOK
+    // ------------------------------------------------------------
+
+    if(bookRatio>=2.00)
+        score+=12;
+    else if(bookRatio>=1.50)
+        score+=10;
+    else if(bookRatio>=1.20)
+        score+=8;
+    else if(bookRatio>=1.00)
+        score+=5;
+    else
+        score+=2;
+
+
+    // ------------------------------------------------------------
+    // E. TOP ORDER BOOK
+    // ------------------------------------------------------------
+
+    if(topRatio>=2.50)
+        score+=8;
+    else if(topRatio>=1.75)
+        score+=6;
+    else if(topRatio>=1.25)
+        score+=4;
+
+
+    // ------------------------------------------------------------
+    // F. CURRENT VOLUME TRANSITION
+    // ------------------------------------------------------------
+
+    if(volumeRatio>=2.00)
+        score+=14;
+    else if(volumeRatio>=1.50)
+        score+=12;
+    else if(volumeRatio>=1.00)
+        score+=9;
+    else if(volumeRatio>=0.70)
+        score+=6;
+    else
+        score+=2;
+
+
+    // ------------------------------------------------------------
+    // G. CURRENT TRADE TRANSITION
+    // ------------------------------------------------------------
+
+    if(tradeRatio>=2.00)
+        score+=10;
+    else if(tradeRatio>=1.50)
+        score+=8;
+    else if(tradeRatio>=1.00)
+        score+=6;
+    else if(tradeRatio>=0.70)
+        score+=3;
+
+
+    // ------------------------------------------------------------
+    // H. PRICE TRANSITION
+    // ------------------------------------------------------------
+
+    if(openStrength>=4)
+        score+=10;
+    else if(openStrength>=3)
+        score+=8;
+    else if(openStrength>=2)
+        score+=5;
+
+
+    // ------------------------------------------------------------
+    // I. INTRADAY POSITION
+    // ------------------------------------------------------------
+
+    if(intradayPosition>=85)
+        score+=8;
+    else if(intradayPosition>=75)
+        score+=7;
+    else if(intradayPosition>=65)
+        score+=5;
+    else
+        score+=2;
+
+
+    // ------------------------------------------------------------
+    // J. HISTORICAL VOLUME CONFIRMATION
+    // ------------------------------------------------------------
+
+    if(historicalVolumeRatio>=1.50)
+        score+=9;
+    else if(historicalVolumeRatio>=1.20)
+        score+=7;
+    else if(historicalVolumeRatio>=1.00)
+        score+=4;
+
+
+    // ------------------------------------------------------------
+    // K. POSITIVE DAYS
+    // ------------------------------------------------------------
+
+    if(positive15>=9)
+        score+=7;
+    else if(positive15>=7)
+        score+=5;
+    else if(positive15>=5)
+        score+=3;
+
+
+    if(positive30>=17)
+        score+=5;
+    else if(positive30>=14)
+        score+=3;
+
+
+    // ------------------------------------------------------------
+    // L. COMPRESSION
+    // ------------------------------------------------------------
+
+    if(compression>=6)
+        score+=8;
+    else if(compression>=4)
+        score+=6;
+    else if(compression>=3)
+        score+=4;
+
+
+    // ------------------------------------------------------------
+    // M. RESISTANCE POSITION
+    // ------------------------------------------------------------
+
+    if(resistanceDistance>=1.5 &&
+       resistanceDistance<=5)
+        score+=10;
+
+    else if(resistanceDistance<=7)
+        score+=7;
+
+    else
+        score+=3;
+
+
+    // ============================================================
+    // 20. PENALTIES
+    // ============================================================
+
+    // ------------------------------------------------------------
+    // Overheated / chase
+    // ------------------------------------------------------------
+
+    if(intradayPosition>=95)
+        score-=8;
+
+
+    if(resistanceDistance<1.2)
+        score-=7;
+
+
+    // ------------------------------------------------------------
+    // Weak order book
+    // ------------------------------------------------------------
+
+    if(bookRatio<1)
+        score-=6;
+
+
+    // ------------------------------------------------------------
+    // Weak real-money flow
+    // ------------------------------------------------------------
+
+    if(realNet<=0)
+        score-=10;
+
+
+    // ------------------------------------------------------------
+    // Weak buyer power
+    // ------------------------------------------------------------
+
+    if(buyerPower<1.50)
+        score-=8;
+
+
+    // ------------------------------------------------------------
+    // Price losing strength
+    // ------------------------------------------------------------
+
+    if(pl<pc)
+        score-=7;
+
+
+    // ------------------------------------------------------------
+    // Excessive distance from support
+    // ------------------------------------------------------------
+
+    if(supportDistance>10)
+        score-=6;
+
+
+    // ============================================================
+    // 21. TRANSITION CONFIRMATION
+    //
+    // حداقل سه حوزه مستقل باید همزمان فعال باشند.
+    // ============================================================
+
+    var confirmations=0;
+
+
+    if(buyerPower>=1.70)
+        confirmations++;
+
+    if(realFlowRatio>=0.12)
+        confirmations++;
+
+    if(bookRatio>=1.20)
+        confirmations++;
+
+    if(volumeRatio>=1.00)
+        confirmations++;
+
+    if(tradeRatio>=1.00)
+        confirmations++;
+
+    if(openStrength>=3)
+        confirmations++;
+
+    if(intradayPosition>=65)
+        confirmations++;
+
+    if(historicalVolumeRatio>=1.20)
+        confirmations++;
+
+    if(compression>=3)
+        confirmations++;
+
+
+    if(confirmations<5)
+        return false;
+
+
+    // ============================================================
+    // 22. FINAL QUALITY GATE
+    // ============================================================
+
+    if(score>=105)
+        return true;
+
+
+    return false;
+
+}()

@@ -1,0 +1,361 @@
+true==function()
+{
+    /*
+    ================================================================
+    E3C-S
+    ELLIOTT WAVE 3 SCANNER
+
+    OFFLINE WATCHLIST ENGINE
+
+    هدف:
+    پیدا کردن ساختار احتمالی:
+
+        Wave 0 -> Wave 1 -> Wave 2 -> potential Wave 3
+
+    این نسخه:
+    - سیگنال خرید نیست
+    - مجوز ورود نیست
+    - برای ساخت Watchlist استفاده می‌شود
+    - بر اساس Pivotهای تاییدشده کار می‌کند
+    - قانون ابطال Wave 2 را رعایت می‌کند
+    - عمق اصلاح Wave 2 را بررسی می‌کند
+    - کیفیت ساختاری و نقدشوندگی را لحاظ می‌کند
+
+    ================================================================
+    */
+
+    if(typeof [ih]=="undefined")
+        return false;
+
+    if([ih].length<80)
+        return false;
+
+
+    var N=Math.min([ih].length,120);
+
+    var P=[];
+    var H=[];
+    var L=[];
+    var V=[];
+
+
+    for(var i=0;i<N;i++)
+    {
+        P[i]=[ih][i].PClosing;
+        H[i]=[ih][i].PriceMax;
+        L[i]=[ih][i].PriceMin;
+        V[i]=[ih][i].QTotTran5J;
+
+        if(P[i]<=0 || H[i]<=0 || L[i]<=0)
+            return false;
+    }
+
+
+    // ------------------------------------------------
+    // Pivot Low / High
+    // ------------------------------------------------
+
+    var isLow=function(i)
+    {
+        if(i<3 || i>N-4)
+            return false;
+
+        return(
+            L[i]<=L[i-1] &&
+            L[i]<=L[i-2] &&
+            L[i]<=L[i+1] &&
+            L[i]<=L[i+2]
+        );
+    };
+
+
+    var isHigh=function(i)
+    {
+        if(i<3 || i>N-4)
+            return false;
+
+        return(
+            H[i]>=H[i-1] &&
+            H[i]>=H[i-2] &&
+            H[i]>=H[i+1] &&
+            H[i]>=H[i+2]
+        );
+    };
+
+
+    // ------------------------------------------------
+    // پیدا کردن آخرین Pivot Low
+    // ------------------------------------------------
+
+    var p2=-1;
+    var p1=-1;
+    var p0=-1;
+
+
+    for(var i=4;i<N-4;i++)
+    {
+        if(isLow(i))
+        {
+            if(p2==-1)
+                p2=i;
+            else if(p1==-1)
+                p1=i;
+            else
+            {
+                p0=i;
+                break;
+            }
+        }
+    }
+
+
+    if(p0==-1 || p1==-1 || p2==-1)
+        return false;
+
+
+    /*
+    ------------------------------------------------
+    توجه:
+    ترتیب زمانی در [ih] معکوس است.
+    p0 قدیمی‌تر از p1 و p2 است.
+    ------------------------------------------------
+    */
+
+
+    // ------------------------------------------------
+    // Pivot High بین p0 و p1
+    // ------------------------------------------------
+
+    var wave1High=-1;
+
+    for(var i=p1+1;i<p0;i++)
+    {
+        if(isHigh(i))
+        {
+            wave1High=i;
+            break;
+        }
+    }
+
+
+    if(wave1High==-1)
+        return false;
+
+
+    var wave0Price=L[p0];
+    var wave1Price=H[wave1High];
+    var wave2Price=L[p1];
+
+
+    // ------------------------------------------------
+    // Wave 1 باید مثبت و معنادار باشد
+    // ------------------------------------------------
+
+    var wave1Move=
+        (wave1Price-wave0Price)/wave0Price;
+
+
+    if(wave1Move<0.05)
+        return false;
+
+
+    // ------------------------------------------------
+    // Wave 2 نباید از Origin Wave 1 عبور کند
+    // ------------------------------------------------
+
+    if(wave2Price<=wave0Price)
+        return false;
+
+
+    // ------------------------------------------------
+    // Retracement
+    // ------------------------------------------------
+
+    var retracement=
+        (wave1Price-wave2Price)/
+        (wave1Price-wave0Price);
+
+
+    if(retracement<=0 || retracement>=1)
+        return false;
+
+
+    // ------------------------------------------------
+    // ناحیه ترجیحی
+    // ------------------------------------------------
+
+    var fibGood=
+        retracement>=0.382 &&
+        retracement<=0.786;
+
+
+    // ------------------------------------------------
+    // قیمت فعلی باید نزدیک انتهای Wave 2 باشد
+    // ------------------------------------------------
+
+    var current=P[0];
+
+    var distanceFromWave2=
+        Math.abs(current-wave2Price)/
+        wave2Price;
+
+
+    if(distanceFromWave2>0.10)
+        return false;
+
+
+    // ------------------------------------------------
+    // مقاومت بالای سر:
+    // آخرین High قبل از Wave 1
+    // ------------------------------------------------
+
+    var resistance=-1;
+
+    for(var i=wave1High+1;i<N-4;i++)
+    {
+        if(isHigh(i))
+        {
+            resistance=H[i];
+            break;
+        }
+    }
+
+
+    var room=true;
+
+    if(resistance>0)
+    {
+        var roomPercent=
+            (resistance-current)/current;
+
+        if(roomPercent<0.03)
+            room=false;
+    }
+
+
+    if(!room)
+        return false;
+
+
+    // ------------------------------------------------
+    // حجم:
+    // میانگین حجم 10 کندل اخیر
+    // در برابر 10 کندل مربوط به Wave 1
+    // ------------------------------------------------
+
+    var recentVol=0;
+    var oldVol=0;
+
+    for(var i=0;i<10 && i<N;i++)
+        recentVol+=V[i];
+
+    for(var i=wave1High;i<wave1High+10 && i<N;i++)
+        oldVol+=V[i];
+
+
+    recentVol/=10;
+    oldVol/=10;
+
+
+    var volumeStructure=
+        recentVol>=oldVol*0.50;
+
+
+    if(!volumeStructure)
+        return false;
+
+
+    // ------------------------------------------------
+    // مومنتوم ساده:
+    // قیمت فعلی نباید زیر Wave 2 تثبیت شده باشد.
+    // ------------------------------------------------
+
+    if(current<wave2Price)
+        return false;
+
+
+    // ------------------------------------------------
+    // فاصله زمانی Wave 1 و Wave 2
+    // ------------------------------------------------
+
+    var wave1Duration=
+        Math.abs(p0-wave1High);
+
+    var wave2Duration=
+        Math.abs(wave1High-p1);
+
+
+    if(wave1Duration<3 || wave2Duration<3)
+        return false;
+
+
+    // ------------------------------------------------
+    // امتیاز
+    // ------------------------------------------------
+
+    var score=0;
+
+
+    // ساختار
+    score+=25;
+
+
+    // Fib
+    if(fibGood)
+        score+=15;
+    else
+        score+=5;
+
+
+    // کیفیت موج 1
+    if(wave1Move>=0.10)
+        score+=10;
+    else
+        score+=5;
+
+
+    // اصلاح سالم
+    if(retracement>=0.50 && retracement<=0.65)
+        score+=10;
+    else
+        score+=5;
+
+
+    // نقدشوندگی
+    var avgVol=0;
+
+    for(var i=0;i<20 && i<N;i++)
+        avgVol+=V[i];
+
+    avgVol/=20;
+
+    if(avgVol>0)
+        score+=10;
+
+
+    // حجم
+    score+=10;
+
+
+    // فضای مقاومت
+    score+=10;
+
+
+    // ساختار زمانی
+    if(wave2Duration>=wave1Duration*0.30)
+        score+=5;
+
+
+    // تایید موقعیت فعلی
+    score+=5;
+
+
+    /*
+    ------------------------------------------------
+    حداقل کیفیت برای Watchlist
+    ------------------------------------------------
+    */
+
+    return score>=75;
+
+}()

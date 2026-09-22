@@ -1,0 +1,667 @@
+true==function()
+{
+    // ============================================================
+    // RRE - RECLAIM & RESILIENCE ENGINE
+    // FILTER 10 - ONLINE
+    //
+    // هدف:
+    // شناسایی سهم‌های روان و نقدشونده‌ای که:
+    // 1) سابقه معاملاتی مناسب دارند
+    // 2) ساختار چندروزه آنها مقاوم است
+    // 3) قدرت خریدار حقیقی مناسب است
+    // 4) جریان خرید حقیقی مثبت است
+    // 5) قیمت فعلی در بخش قدرتمند دامنه روز قرار دارد
+    // 6) قیمت در حال بازپس‌گیری بخش بالایی دامنه است
+    // 7) حجم و تعداد معاملات برای ورود/خروج مناسب است
+    // 8) ریسک سهم‌های کم‌معامله و بی‌رمق حذف می‌شود
+    //
+    // نکته:
+    // این فیلتر پیش‌بینی قطعی آینده نیست.
+    // ============================================================
+
+
+    // ------------------------------------------------------------
+    // 1) DATA VALIDATION
+    // ------------------------------------------------------------
+
+    if(typeof [ih]=="undefined")
+        return false;
+
+    if([ih].length<15)
+        return false;
+
+    if(pl<=0 || pc<=0 || py<=0 || pf<=0)
+        return false;
+
+    if(tvol<=0 || tno<=0 || tval<=0)
+        return false;
+
+    if(tmin<=0 || tmax<=0 || tmax<=tmin)
+        return false;
+
+
+    // ------------------------------------------------------------
+    // 2) LIQUIDITY / TRADABILITY
+    // ------------------------------------------------------------
+
+    if([is1]<=0 || [is5]<=0 || [is9]<=0)
+        return false;
+
+    // سابقه حضور مناسب در بازار
+    if([is40]<70)
+        return false;
+
+    // حداقل نقدشوندگی نسبی
+    if([is1]<100000000)
+        return false;
+
+    if([is5]<10000)
+        return false;
+
+    if([is9]<30)
+        return false;
+
+
+    // ------------------------------------------------------------
+    // 3) CURRENT DAY RANGE
+    // ------------------------------------------------------------
+
+    var dayRange=tmax-tmin;
+
+    if(dayRange<=0)
+        return false;
+
+    // موقعیت قیمت فعلی در دامنه امروز
+    var dayPosition=
+        (pl-tmin)/dayRange;
+
+    if(dayPosition<0)
+        return false;
+
+    if(dayPosition>1.05)
+        return false;
+
+
+    // ------------------------------------------------------------
+    // 4) PRICE RECLAIM
+    // ------------------------------------------------------------
+
+    /*
+       قیمت باید در بخش بالایی دامنه امروز باشد.
+       اما صرفاً نزدیک سقف بودن کافی نیست.
+    */
+
+    if(dayPosition<0.68)
+        return false;
+
+
+    // قیمت آخرین معامله باید حداقل برابر قیمت پایانی باشد
+    if(pl<pc)
+        return false;
+
+
+    // قیمت فعلی نسبت به قیمت دیروز ضعیف نباشد
+    if(pl<py)
+        return false;
+
+
+    // ------------------------------------------------------------
+    // 5) DISTANCE FROM DAILY HIGH
+    // ------------------------------------------------------------
+
+    var distanceFromHigh=
+        (tmax-pl)/dayRange;
+
+    /*
+       اجازه می‌دهیم سهم هنوز کمی تا سقف فاصله داشته باشد.
+       این کار بهتر از شکار صرفاً صف خرید است.
+    */
+
+    if(distanceFromHigh>0.32)
+        return false;
+
+
+    // ------------------------------------------------------------
+    // 6) REAL BUYER / SELLER ANALYSIS
+    // ------------------------------------------------------------
+
+    var buyI=(ct).Buy_I_Volume;
+    var sellI=(ct).Sell_I_Volume;
+
+    var buyC=(ct).Buy_CountI;
+    var sellC=(ct).Sell_CountI;
+
+
+    if(buyI<=0 || sellI<=0)
+        return false;
+
+    if(buyC<=0 || sellC<=0)
+        return false;
+
+
+    // متوسط خرید حقیقی
+    var avgBuy=
+        buyI/buyC;
+
+    // متوسط فروش حقیقی
+    var avgSell=
+        sellI/sellC;
+
+
+    if(avgBuy<=0 || avgSell<=0)
+        return false;
+
+
+    // قدرت خریدار
+    var buyerPower=
+        avgBuy/avgSell;
+
+
+    // ------------------------------------------------------------
+    // 7) BUYER POWER CORE
+    // ------------------------------------------------------------
+
+    if(buyerPower<1.65)
+        return false;
+
+
+    // ------------------------------------------------------------
+    // 8) REAL MONEY BALANCE
+    // ------------------------------------------------------------
+
+    var netReal=
+        buyI-sellI;
+
+    var realFlowRatio=
+        netReal/(buyI+sellI);
+
+
+    if(realFlowRatio<0.05)
+        return false;
+
+
+    // ------------------------------------------------------------
+    // 9) ORDER BOOK STRENGTH
+    // ------------------------------------------------------------
+
+    var bidVolume=
+        qd1+qd2+qd3;
+
+    var askVolume=
+        qo1+qo2+qo3;
+
+
+    if(bidVolume<=0 || askVolume<=0)
+        return false;
+
+
+    var bookRatio=
+        bidVolume/askVolume;
+
+
+    /*
+       دفتر سفارش نباید کاملاً علیه سهم باشد.
+       شرط را خیلی سخت نکرده‌ایم تا سهم قابل معامله باقی بماند.
+    */
+
+    if(bookRatio<0.55)
+        return false;
+
+
+    // ------------------------------------------------------------
+    // 10) FIRST LEVEL DEFENSE
+    // ------------------------------------------------------------
+
+    if(qd1<=0 || qo1<=0)
+        return false;
+
+    var firstLevelRatio=
+        qd1/qo1;
+
+
+    if(firstLevelRatio<0.40)
+        return false;
+
+
+    // ------------------------------------------------------------
+    // 11) CURRENT VOLUME PARTICIPATION
+    // ------------------------------------------------------------
+
+    var avgVol15=0;
+    var avgTran15=0;
+    var valid15=0;
+
+
+    for(var i=0;i<15;i++)
+    {
+        if(typeof [ih][i]!="undefined")
+        {
+            if([ih][i].QTotTran5J>0 &&
+               [ih][i].ZTotTran>0)
+            {
+                avgVol15 += [ih][i].QTotTran5J;
+                avgTran15 += [ih][i].ZTotTran;
+                valid15++;
+            }
+        }
+    }
+
+
+    if(valid15<12)
+        return false;
+
+
+    avgVol15=avgVol15/valid15;
+    avgTran15=avgTran15/valid15;
+
+
+    if(avgVol15<=0 || avgTran15<=0)
+        return false;
+
+
+    var volumeParticipation=
+        tvol/avgVol15;
+
+    var transactionParticipation=
+        tno/avgTran15;
+
+
+    /*
+       سهم نباید در روز جاری تقریباً مرده باشد.
+    */
+
+    if(volumeParticipation<0.35)
+        return false;
+
+    if(transactionParticipation<0.35)
+        return false;
+
+
+    // ------------------------------------------------------------
+    // 12) HISTORICAL RESILIENCE - 5 DAYS
+    // ------------------------------------------------------------
+
+    var positive5=0;
+    var strongClose5=0;
+    var valid5=0;
+
+
+    for(var j=0;j<5;j++)
+    {
+        if(typeof [ih][j]!="undefined")
+        {
+            var d=[ih][j];
+
+            if(d.PClosing>0 &&
+               d.PriceYesterday>0 &&
+               d.PriceMin>0 &&
+               d.PriceMax>d.PriceMin)
+            {
+                valid5++;
+
+                if(d.PClosing>=d.PriceYesterday)
+                    positive5++;
+
+                var closePosition=
+                    (d.PClosing-d.PriceMin)/
+                    (d.PriceMax-d.PriceMin);
+
+                if(closePosition>=0.58)
+                    strongClose5++;
+            }
+        }
+    }
+
+
+    if(valid5<5)
+        return false;
+
+
+    /*
+       حداقل 3 روز از 5 روز اخیر مثبت یا خنثی.
+    */
+
+    if(positive5<3)
+        return false;
+
+
+    /*
+       حداقل 3 روز بسته شدن در بخش نسبتاً قوی دامنه.
+    */
+
+    if(strongClose5<3)
+        return false;
+
+
+    // ------------------------------------------------------------
+    // 13) HISTORICAL STRUCTURE - 10 DAYS
+    // ------------------------------------------------------------
+
+    var higherClose10=0;
+    var valid10=0;
+
+
+    for(var k=0;k<9;k++)
+    {
+        if(typeof [ih][k]!="undefined" &&
+           typeof [ih][k+1]!="undefined")
+        {
+            if([ih][k].PClosing>0 &&
+               [ih][k+1].PClosing>0)
+            {
+                valid10++;
+
+                if([ih][k].PClosing>=
+                   [ih][k+1].PClosing)
+                {
+                    higherClose10++;
+                }
+            }
+        }
+    }
+
+
+    if(valid10<8)
+        return false;
+
+
+    /*
+       الزام روند صعودی کامل نداریم.
+       حداقل 4 مقایسه از 9 مقایسه باید مثبت باشد.
+    */
+
+    if(higherClose10<4)
+        return false;
+
+
+    // ------------------------------------------------------------
+    // 14) RECENT PRICE STABILITY
+    // ------------------------------------------------------------
+
+    var severeDrop=0;
+
+
+    for(var m=0;m<10;m++)
+    {
+        if(typeof [ih][m]!="undefined")
+        {
+            if([ih][m].PClosing>0 &&
+               [ih][m].PriceYesterday>0)
+            {
+                var dailyReturn=
+                    [ih][m].PClosing/
+                    [ih][m].PriceYesterday;
+
+                /*
+                   افت بیشتر از 6 درصد در یک روز
+                   در این استراتژی یک هشدار جدی است.
+                */
+
+                if(dailyReturn<0.94)
+                    severeDrop++;
+            }
+        }
+    }
+
+
+    if(severeDrop>=3)
+        return false;
+
+
+    // ------------------------------------------------------------
+    // 15) RECENT HIGH / LOW STRUCTURE
+    // ------------------------------------------------------------
+
+    var max10=0;
+    var min10=999999999999999;
+    var validRange=0;
+
+
+    for(var n=0;n<10;n++)
+    {
+        if(typeof [ih][n]!="undefined")
+        {
+            if([ih][n].PriceMax>0 &&
+               [ih][n].PriceMin>0)
+            {
+                validRange++;
+
+                if([ih][n].PriceMax>max10)
+                    max10=[ih][n].PriceMax;
+
+                if([ih][n].PriceMin<min10)
+                    min10=[ih][n].PriceMin;
+            }
+        }
+    }
+
+
+    if(validRange<8)
+        return false;
+
+
+    if(max10<=min10)
+        return false;
+
+
+    /*
+       سهم نباید همین الان در کف 10 روزه گیر کرده باشد.
+    */
+
+    var position10=
+        (pl-min10)/(max10-min10);
+
+
+    if(position10<0.45)
+        return false;
+
+
+    // ------------------------------------------------------------
+    // 16) CURRENT PRICE VS RECENT CLOSES
+    // ------------------------------------------------------------
+
+    var recentAverageClose=0;
+    var closeCount=0;
+
+
+    for(var p=0;p<5;p++)
+    {
+        if(typeof [ih][p]!="undefined" &&
+           [ih][p].PClosing>0)
+        {
+            recentAverageClose +=
+                [ih][p].PClosing;
+
+            closeCount++;
+        }
+    }
+
+
+    if(closeCount<5)
+        return false;
+
+
+    recentAverageClose=
+        recentAverageClose/closeCount;
+
+
+    /*
+       قیمت فعلی نباید کاملاً از ساختار اخیر جدا شده باشد.
+       فاصله زیاد می‌تواند نشانه تعقیب قیمت باشد.
+    */
+
+    if(pl>recentAverageClose*1.12)
+        return false;
+
+
+    // ------------------------------------------------------------
+    // 17) ANTI-TRAP: EXCESSIVE CURRENT EXHAUSTION
+    // ------------------------------------------------------------
+
+    var exhaustion=0;
+
+
+    if(dayPosition>=0.97)
+        exhaustion+=15;
+
+    if(distanceFromHigh<=0.02)
+        exhaustion+=10;
+
+
+    /*
+       اگر همزمان حجم خیلی سنگین و قدرت خریدار ضعیف باشد،
+       احتمال توزیع افزایش می‌یابد.
+    */
+
+    if(volumeParticipation>=2.50 &&
+       buyerPower<2.00)
+    {
+        exhaustion+=20;
+    }
+
+
+    if(exhaustion>=30)
+        return false;
+
+
+    // ------------------------------------------------------------
+    // 18) RESILIENCE SCORE
+    // ------------------------------------------------------------
+
+    var score=0;
+
+
+    // نقدشوندگی
+    if([is40]>=90)
+        score+=15;
+    else if([is40]>=80)
+        score+=12;
+    else
+        score+=8;
+
+
+    // قدرت خریدار
+    if(buyerPower>=3.50)
+        score+=25;
+    else if(buyerPower>=2.80)
+        score+=22;
+    else if(buyerPower>=2.20)
+        score+=19;
+    else if(buyerPower>=1.90)
+        score+=15;
+    else
+        score+=10;
+
+
+    // جریان حقیقی
+    if(realFlowRatio>=0.25)
+        score+=20;
+    else if(realFlowRatio>=0.15)
+        score+=17;
+    else if(realFlowRatio>=0.08)
+        score+=14;
+    else
+        score+=9;
+
+
+    // دفتر سفارش
+    if(bookRatio>=1.50)
+        score+=15;
+    else if(bookRatio>=1.00)
+        score+=12;
+    else if(bookRatio>=0.75)
+        score+=9;
+    else
+        score+=6;
+
+
+    // موقعیت قیمت روز
+    if(dayPosition>=0.90)
+        score+=15;
+    else if(dayPosition>=0.80)
+        score+=13;
+    else
+        score+=9;
+
+
+    // ساختار 5 روزه
+    if(positive5>=4)
+        score+=15;
+    else
+        score+=10;
+
+
+    if(strongClose5>=4)
+        score+=15;
+    else
+        score+=9;
+
+
+    // ساختار 10 روزه
+    if(higherClose10>=6)
+        score+=15;
+    else if(higherClose10>=5)
+        score+=12;
+    else
+        score+=8;
+
+
+    // مشارکت معاملات
+    if(volumeParticipation>=1.50)
+        score+=10;
+    else if(volumeParticipation>=0.75)
+        score+=7;
+    else
+        score+=4;
+
+
+    // ------------------------------------------------------------
+    // 19) PENALTIES
+    // ------------------------------------------------------------
+
+    score-=exhaustion;
+
+
+    // ------------------------------------------------------------
+    // 20) FINAL HARD GATES
+    // ------------------------------------------------------------
+
+    if(buyerPower<1.65)
+        return false;
+
+    if(realFlowRatio<0.05)
+        return false;
+
+    if(bookRatio<0.55)
+        return false;
+
+    if(dayPosition<0.68)
+        return false;
+
+    if(distanceFromHigh>0.32)
+        return false;
+
+    if(positive5<3)
+        return false;
+
+    if(strongClose5<3)
+        return false;
+
+    if(higherClose10<4)
+        return false;
+
+    if(position10<0.45)
+        return false;
+
+    if(score<145)
+        return false;
+
+
+    // ------------------------------------------------------------
+    // 21) FINAL RRE SIGNAL
+    // ------------------------------------------------------------
+
+    return true;
+
+}()
+

@@ -1,0 +1,362 @@
+
+true==function()
+{
+    /*
+    ================================================================
+    D4C
+    FOUR-DIVERGENCE CONFLUENCE ENGINE
+
+    MFI + CCI + RSI + MACD
+
+    هدف:
+    شناسایی سهم‌هایی که روی یک ساختار Pivot مشترک،
+    هر چهار اندیکاتور دارای واگرایی صعودی باشند.
+
+    انواع واگرایی مجاز:
+
+    1) Regular Bullish Divergence
+       قیمت: کف جدید پایین‌تر
+       اندیکاتور: کف بالاتر
+
+    2) Hidden Bullish Divergence
+       قیمت: کف بالاتر
+       اندیکاتور: کف پایین‌تر
+
+    هر چهار اندیکاتور باید یکی از این دو نوع واگرایی
+    را نسبت به همان دو Pivot قیمتی نشان دهند.
+
+    کاربرد:
+    WATCHLIST / REVERSAL / EARLY TREND DETECTION
+
+    قابل استفاده:
+    - خارج از بازار
+    - حین بازار با آخرین Pivot تاییدشده
+
+    نکته:
+    سیگنال خرید قطعی نیست.
+    ================================================================
+    */
+
+
+    // ------------------------------------------------
+    // حداقل دیتای مورد نیاز
+    // ------------------------------------------------
+
+    if(typeof [ih]=="undefined")
+        return false;
+
+    if([ih].length<45)
+        return false;
+
+
+    var len=Math.min([ih].length,70);
+
+
+    // ------------------------------------------------
+    // DATA
+    // ------------------------------------------------
+
+    var P=[];
+    var H=[];
+    var L=[];
+    var V=[];
+    var TP=[];
+
+    for(var i=0;i<len;i++)
+    {
+        if(typeof [ih][i]=="undefined")
+            return false;
+
+        P[i]=[ih][i].PClosing;
+        H[i]=[ih][i].PriceMax;
+        L[i]=[ih][i].PriceMin;
+        V[i]=[ih][i].QTotTran5J;
+
+        if(P[i]<=0 || H[i]<=0 || L[i]<=0)
+            return false;
+
+        TP[i]=(H[i]+L[i]+P[i])/3;
+    }
+
+
+    // ------------------------------------------------
+    // EMA
+    // ------------------------------------------------
+
+    var EMA=function(arr,period)
+    {
+        var out=[];
+
+        var alpha=2/(period+1);
+
+        out[0]=arr[0];
+
+        for(var i=1;i<arr.length;i++)
+        {
+            out[i]=
+                alpha*arr[i]+
+                (1-alpha)*out[i-1];
+        }
+
+        return out;
+    };
+
+
+    // ------------------------------------------------
+    // RSI
+    // ------------------------------------------------
+
+    var RSI=[];
+
+    for(var i=0;i<len;i++)
+    {
+        var gain=0;
+        var loss=0;
+
+        var start=Math.min(len-1,i+13);
+
+        for(var j=i;j<start;j++)
+        {
+            var ch=P[j]-P[j+1];
+
+            if(ch>0)
+                gain+=ch;
+            else
+                loss-=ch;
+        }
+
+        if(loss==0)
+            RSI[i]=100;
+        else
+        {
+            var rs=gain/loss;
+
+            RSI[i]=100-(100/(1+rs));
+        }
+    }
+
+
+    // ------------------------------------------------
+    // MFI
+    // ------------------------------------------------
+
+    var MFI=[];
+
+    for(var i=0;i<len;i++)
+    {
+        var pos=0;
+        var neg=0;
+
+        var start=Math.min(len-1,i+13);
+
+        for(var j=i;j<start;j++)
+        {
+            var money=TP[j]*V[j];
+
+            if(TP[j]>TP[j+1])
+                pos+=money;
+
+            if(TP[j]<TP[j+1])
+                neg+=money;
+        }
+
+        if(neg==0)
+            MFI[i]=100;
+        else
+        {
+            var ratio=pos/neg;
+
+            MFI[i]=100-(100/(1+ratio));
+        }
+    }
+
+
+    // ------------------------------------------------
+    // CCI
+    // ------------------------------------------------
+
+    var CCI=[];
+
+    for(var i=0;i<len;i++)
+    {
+        var start=Math.min(len-1,i+19);
+
+        var sum=0;
+        var count=0;
+
+        for(var j=i;j<=start;j++)
+        {
+            sum+=TP[j];
+            count++;
+        }
+
+        var mean=sum/count;
+
+        var dev=0;
+
+        for(var j=i;j<=start;j++)
+            dev+=Math.abs(TP[j]-mean);
+
+        dev=dev/count;
+
+        if(dev==0)
+            CCI[i]=0;
+        else
+            CCI[i]=(TP[i]-mean)/(0.015*dev);
+    }
+
+
+    // ------------------------------------------------
+    // MACD HISTOGRAM
+    // ------------------------------------------------
+
+    var ema12=EMA(P,12);
+    var ema26=EMA(P,26);
+
+    var MACD=[];
+
+    for(var i=0;i<len;i++)
+        MACD[i]=ema12[i]-ema26[i];
+
+    var signal=EMA(MACD,9);
+
+    var MACDH=[];
+
+    for(var i=0;i<len;i++)
+        MACDH[i]=MACD[i]-signal[i];
+
+
+    // ------------------------------------------------
+    // PIVOT LOW
+    //
+    // فقط Pivot تاییدشده استفاده می‌شود.
+    // این موضوع برای استفاده آنلاین بسیار مهم است.
+    // ------------------------------------------------
+
+    var pivotLow=function(i)
+    {
+        if(i<3 || i>len-4)
+            return false;
+
+        return(
+            L[i]<=L[i-1] &&
+            L[i]<=L[i-2] &&
+            L[i]<=L[i+1] &&
+            L[i]<=L[i+2]
+        );
+    };
+
+
+    // ------------------------------------------------
+    // پیدا کردن دو Pivot Low اخیر
+    // ------------------------------------------------
+
+    var recent=-1;
+    var old=-1;
+
+    for(var i=3;i<len-3;i++)
+    {
+        if(pivotLow(i))
+        {
+            if(recent==-1)
+                recent=i;
+            else
+            {
+                old=i;
+                break;
+            }
+        }
+    }
+
+
+    if(recent==-1 || old==-1)
+        return false;
+
+
+    // فاصله بسیار کم بین دو Pivot
+    // ارزش تحلیلی واگرایی را کاهش می‌دهد.
+
+    var gap=old-recent;
+
+    if(gap<5)
+        return false;
+
+
+    // ------------------------------------------------
+    // Regular Bullish
+    //
+    // Price:
+    // Lower Low
+    //
+    // Indicator:
+    // Higher Low
+    // ------------------------------------------------
+
+    var regularBull=function(ind)
+    {
+        return(
+            L[recent]<L[old] &&
+            ind[recent]>ind[old]
+        );
+    };
+
+
+    // ------------------------------------------------
+    // Hidden Bullish
+    //
+    // Price:
+    // Higher Low
+    //
+    // Indicator:
+    // Lower Low
+    // ------------------------------------------------
+
+    var hiddenBull=function(ind)
+    {
+        return(
+            L[recent]>L[old] &&
+            ind[recent]<ind[old]
+        );
+    };
+
+
+    // ------------------------------------------------
+    // هر دو نوع واگرایی برای هر اندیکاتور
+    // ------------------------------------------------
+
+    var D_MFI=
+        regularBull(MFI) ||
+        hiddenBull(MFI);
+
+    var D_CCI=
+        regularBull(CCI) ||
+        hiddenBull(CCI);
+
+    var D_RSI=
+        regularBull(RSI) ||
+        hiddenBull(RSI);
+
+    var D_MACD=
+        regularBull(MACDH) ||
+        hiddenBull(MACDH);
+
+
+    // ------------------------------------------------
+    // CONFLUENCE
+    //
+    // هر چهار مورد باید تایید شوند.
+    // ------------------------------------------------
+
+    if(
+        D_MFI &&
+        D_CCI &&
+        D_RSI &&
+        D_MACD
+    )
+        return true;
+
+
+    return false;
+
+}()
+

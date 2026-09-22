@@ -68,3 +68,27 @@ Includes real-time screening modules for:
 - Volume spike detection
 - Bullish reversal
 - Tight range breakout
+## Project Structure
+
+src/
+├── online/
+│   └── Real-time screening filters
+│
+├── offline/
+│   └── Historical analysis filters
+│
+├── indicators/
+│   └── Reusable technical calculations
+│
+└── examples/
+    └── Usage examples
+
+    ## Development Status
+
+The project is in early public release stage.
+New screening modules, indicators, examples, and validation workflows are being added progressively.
+
+## Contributing
+
+See CONTRIBUTING.md for contribution guidelines.
+

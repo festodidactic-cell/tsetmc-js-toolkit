@@ -1,0 +1,688 @@
+true==function()
+{
+    /*
+    ================================================================
+    FILTER 06
+    FSA - FLASH SELLWALL ABSORPTION HUNTER
+
+    هدف:
+    شکار لحظه ای نمادهای سالم و نقدشونده ای که در نزدیکی آستانه
+    پایین مجاز قرار گرفته اند و همزمان نشانه های قدرتمند جذب عرضه،
+    بازگشت تقاضا و تلاش برای خروج از ناحیه فروش سنگین نشان می دهند.
+
+    IMPORTANT:
+    این فیلتر Queue Absorption واقعی را از روی Tick History اندازه
+    نمی گیرد؛ زیرا تاریخچه لحظه ای صف در [ih] وجود ندارد.
+    بنابراین از امضای جاری جذب عرضه استفاده می کند.
+
+    منطق کلی:
+
+    HEALTHY STOCK
+          +
+    SELL ZONE
+          +
+    BUYER POWER
+          +
+    REAL MONEY FLOW
+          +
+    BID REAPPEARANCE
+          +
+    SELLWALL / BID IMBALANCE
+          +
+    PRICE ESCAPE ATTEMPT
+          +
+    VOLUME / TRADE PARTICIPATION
+          +
+    HISTORICAL LIQUIDITY
+          =
+    FLASH ABSORPTION SIGNAL
+
+    خروجی = کاندید بررسی و واکنش سریع
+    خروجی != تضمین سود
+    ================================================================
+    */
+
+
+    // ============================================================
+    // 1. DATA VALIDATION
+    // ============================================================
+
+    if(typeof [ih]=="undefined")
+        return false;
+
+    if(typeof [ih][0]=="undefined")
+        return false;
+
+    if([ih].length<20)
+        return false;
+
+    if(tmin<=0 || tmax<=0)
+        return false;
+
+    if(tmax<=tmin)
+        return false;
+
+    if(pl<=0 || pc<=0 || py<=0)
+        return false;
+
+    if(tvol<=0 || tno<=0)
+        return false;
+
+    if((ct).Buy_CountI<=0 ||
+       (ct).Sell_CountI<=0)
+        return false;
+
+
+    // ============================================================
+    // 2. HISTORICAL LIQUIDITY / STABILITY GATE
+    // ============================================================
+
+    // سهم باید سابقه معاملاتی و نقدشوندگی قابل قبول داشته باشد.
+
+    if([is1]<=0)
+        return false;
+
+    if([is5]<=0)
+        return false;
+
+    if([is9]<=0)
+        return false;
+
+
+    // درصد روزهای باز
+    if([is40]<75)
+        return false;
+
+    if([is41]<70)
+        return false;
+
+
+    // ============================================================
+    // 3. CURRENT BUY / SELL REAL MONEY
+    // ============================================================
+
+    var buyVol=(ct).Buy_I_Volume;
+    var sellVol=(ct).Sell_I_Volume;
+
+    var buyCnt=(ct).Buy_CountI;
+    var sellCnt=(ct).Sell_CountI;
+
+
+    if(buyVol<=0 ||
+       sellVol<=0 ||
+       buyCnt<=0 ||
+       sellCnt<=0)
+        return false;
+
+
+    var buyPer=buyVol/buyCnt;
+    var sellPer=sellVol/sellCnt;
+
+
+    if(sellPer<=0)
+        return false;
+
+
+    var buyerPower=buyPer/sellPer;
+
+
+    // ============================================================
+    // 4. REAL MONEY ABSORPTION
+    // ============================================================
+
+    var realNet=buyVol-sellVol;
+
+    var realRatio=realNet/buyVol;
+
+
+    // باید حداقل نشانه ای از برگشت پول حقیقی وجود داشته باشد.
+    if(realNet<=0)
+        return false;
+
+
+    if(realRatio<0.08)
+        return false;
+
+
+    // ============================================================
+    // 5. DYNAMIC MARKET BAND
+    //
+    // بدون استفاده از -2% / -3% ثابت.
+    // ============================================================
+
+    var band=tmax-tmin;
+
+    if(band<=0)
+        return false;
+
+
+    // فاصله قیمت جاری از کف مجاز، به عنوان درصدی از کل دامنه مجاز
+    var lowerDistance=(pl-tmin)/band;
+
+    // قیمت باید در پایین ترین بخش دامنه باشد.
+    if(lowerDistance<0)
+        return false;
+
+    if(lowerDistance>0.18)
+        return false;
+
+
+    // ============================================================
+    // 6. SELLWALL IDENTIFICATION
+    // ============================================================
+
+    var ask1=qo1;
+    var ask2=qo2;
+    var ask3=qo3;
+    var ask4=qo4;
+    var ask5=qo5;
+
+    var bid1=qd1;
+    var bid2=qd2;
+    var bid3=qd3;
+    var bid4=qd4;
+    var bid5=qd5;
+
+
+    var totalAsk=
+    ask1+ask2+ask3+ask4+ask5;
+
+    var totalBid=
+    bid1+bid2+bid3+bid4+bid5;
+
+
+    if(totalAsk<=0)
+        return false;
+
+
+    // ============================================================
+    // 7. SELLWALL CONCENTRATION
+    //
+    // تمرکز عرضه در ردیف اول/پنج ردیف
+    // ============================================================
+
+    var askConcentration=ask1/totalAsk;
+
+
+    // صف فروش/عرضه باید واقعاً وجود داشته باشد.
+    if(askConcentration<0.20 &&
+       totalAsk<=totalBid)
+        return false;
+
+
+    // ============================================================
+    // 8. BID REAPPEARANCE / DEMAND RECONSTRUCTION
+    // ============================================================
+
+    var bidAskRatio=0;
+
+    if(totalAsk>0)
+        bidAskRatio=totalBid/totalAsk;
+
+
+    // حتی در ناحیه عرضه سنگین، باید نشانه ای از بازسازی تقاضا وجود داشته باشد.
+    if(bidAskRatio<0.30)
+        return false;
+
+
+    // ============================================================
+    // 9. FIRST LEVEL ABSORPTION PRESSURE
+    // ============================================================
+
+    var firstLevelRatio=0;
+
+    if(ask1>0)
+        firstLevelRatio=bid1/ask1;
+
+
+    // ============================================================
+    // 10. PRICE ESCAPE ATTEMPT
+    // ============================================================
+
+    var escapeScore=0;
+
+
+    if(pl>tmin)
+        escapeScore+=2;
+
+    if(pmax>tmin)
+        escapeScore+=2;
+
+    if(pl>=pf)
+        escapeScore+=1;
+
+    if(pl>=pc)
+        escapeScore+=1;
+
+    if(pl>py)
+        escapeScore+=1;
+
+
+    // حداقل تلاش برای خروج از کف
+    if(escapeScore<3)
+        return false;
+
+
+    // ============================================================
+    // 11. INTRADAY RECOVERY POSITION
+    // ============================================================
+
+    var recoveryPosition=0;
+
+    if(pmax>pmin)
+    {
+        recoveryPosition=
+        ((pl-pmin)/(pmax-pmin))*100;
+    }
+
+
+    // نباید سهم در کف مطلق روز قفل شده باشد.
+    if(recoveryPosition<15)
+        return false;
+
+
+    // ============================================================
+    // 12. CURRENT PARTICIPATION
+    // ============================================================
+
+    var avgVol20=0;
+    var avgTrade20=0;
+
+    var vc=0;
+    var tc=0;
+
+
+    for(var i=0;i<20;i++)
+    {
+        if(typeof [ih][i]!="undefined")
+        {
+            if([ih][i].QTotTran5J>0)
+            {
+                avgVol20 += [ih][i].QTotTran5J;
+                vc++;
+            }
+
+            if([ih][i].ZTotTran>0)
+            {
+                avgTrade20 += [ih][i].ZTotTran;
+                tc++;
+            }
+        }
+    }
+
+
+    if(vc<=0 || tc<=0)
+        return false;
+
+
+    avgVol20=avgVol20/vc;
+    avgTrade20=avgTrade20/tc;
+
+
+    if(avgVol20<=0 ||
+       avgTrade20<=0)
+        return false;
+
+
+    var volumeParticipation=tvol/avgVol20;
+    var tradeParticipation=tno/avgTrade20;
+
+
+    // برای شکار لحظه ای، فعالیت جاری باید حداقلی داشته باشد.
+    if(volumeParticipation<0.12)
+        return false;
+
+    if(tradeParticipation<0.12)
+        return false;
+
+
+    // ============================================================
+    // 13. HISTORICAL TRADING QUALITY
+    // ============================================================
+
+    var positiveDays=0;
+    var tradedDays=0;
+
+    for(var j=0;j<20;j++)
+    {
+        if(typeof [ih][j]!="undefined")
+        {
+            if([ih][j].QTotTran5J>0)
+                tradedDays++;
+
+            if([ih][j].PClosing>[ih][j].PriceYesterday)
+                positiveDays++;
+        }
+    }
+
+
+    if(tradedDays<15)
+        return false;
+
+
+    // ============================================================
+    // 14. CURRENT BUYER POWER QUALITY
+    // ============================================================
+
+    var buyerScore=0;
+
+    if(buyerPower>=3.00)
+        buyerScore=20;
+
+    else if(buyerPower>=2.50)
+        buyerScore=17;
+
+    else if(buyerPower>=2.00)
+        buyerScore=14;
+
+    else if(buyerPower>=1.70)
+        buyerScore=11;
+
+    else if(buyerPower>=1.50)
+        buyerScore=8;
+
+    else if(buyerPower>=1.30)
+        buyerScore=5;
+
+    else
+        return false;
+
+
+    // ============================================================
+    // 15. REAL MONEY SCORE
+    // ============================================================
+
+    var moneyScore=0;
+
+    if(realRatio>=0.30)
+        moneyScore=18;
+
+    else if(realRatio>=0.20)
+        moneyScore=15;
+
+    else if(realRatio>=0.12)
+        moneyScore=12;
+
+    else if(realRatio>=0.08)
+        moneyScore=8;
+
+    else
+        return false;
+
+
+    // ============================================================
+    // 16. ORDER BOOK SCORE
+    // ============================================================
+
+    var bookScore=0;
+
+
+    if(bidAskRatio>=1.20)
+        bookScore=18;
+
+    else if(bidAskRatio>=0.90)
+        bookScore=15;
+
+    else if(bidAskRatio>=0.70)
+        bookScore=12;
+
+    else if(bidAskRatio>=0.50)
+        bookScore=8;
+
+    else if(bidAskRatio>=0.30)
+        bookScore=4;
+
+    else
+        return false;
+
+
+    // ============================================================
+    // 17. FIRST LEVEL SCORE
+    // ============================================================
+
+    var firstScore=0;
+
+
+    if(firstLevelRatio>=1.50)
+        firstScore=12;
+
+    else if(firstLevelRatio>=1.00)
+        firstScore=10;
+
+    else if(firstLevelRatio>=0.70)
+        firstScore=7;
+
+    else if(firstLevelRatio>=0.40)
+        firstScore=4;
+
+    else
+        firstScore=1;
+
+
+    // ============================================================
+    // 18. ESCAPE SCORE
+    // ============================================================
+
+    var escapePoints=0;
+
+
+    if(escapeScore>=6)
+        escapePoints=15;
+
+    else if(escapeScore>=5)
+        escapePoints=12;
+
+    else if(escapeScore>=4)
+        escapePoints=9;
+
+    else
+        escapePoints=5;
+
+
+    // ============================================================
+    // 19. PARTICIPATION SCORE
+    // ============================================================
+
+    var participationScore=0;
+
+
+    if(volumeParticipation>=2.00 &&
+       tradeParticipation>=2.00)
+        participationScore=15;
+
+    else if(volumeParticipation>=1.50 &&
+            tradeParticipation>=1.50)
+        participationScore=12;
+
+    else if(volumeParticipation>=1.00 &&
+            tradeParticipation>=1.00)
+        participationScore=9;
+
+    else if(volumeParticipation>=0.50 &&
+            tradeParticipation>=0.50)
+        participationScore=6;
+
+    else
+        participationScore=3;
+
+
+    // ============================================================
+    // 20. RECOVERY QUALITY
+    // ============================================================
+
+    var recoveryScore=0;
+
+
+    if(recoveryPosition>=60)
+        recoveryScore=10;
+
+    else if(recoveryPosition>=45)
+        recoveryScore=8;
+
+    else if(recoveryPosition>=30)
+        recoveryScore=6;
+
+    else
+        recoveryScore=3;
+
+
+    // ============================================================
+    // 21. HISTORICAL QUALITY SCORE
+    // ============================================================
+
+    var historyScore=0;
+
+
+    if(tradedDays>=20)
+        historyScore+=7;
+
+    else if(tradedDays>=18)
+        historyScore+=5;
+
+    else
+        historyScore+=3;
+
+
+    if(positiveDays>=12)
+        historyScore+=5;
+
+    else if(positiveDays>=9)
+        historyScore+=3;
+
+    else
+        historyScore+=1;
+
+
+    // ============================================================
+    // 22. ABSORPTION SCORE
+    // ============================================================
+
+    var absorptionScore=0;
+
+
+    // فروشنده سنگین + تقاضای در حال بازسازی
+    if(askConcentration>=0.45 &&
+       bidAskRatio>=0.70)
+        absorptionScore+=15;
+
+    else if(askConcentration>=0.35 &&
+            bidAskRatio>=0.60)
+        absorptionScore+=12;
+
+    else if(bidAskRatio>=0.50)
+        absorptionScore+=8;
+
+
+    // خروج قیمت از کف
+    if(pl>tmin)
+        absorptionScore+=8;
+
+    if(pmax>tmin)
+        absorptionScore+=6;
+
+
+    // ============================================================
+    // 23. ANTI-FAKE / ANTI-CHASE PENALTIES
+    // ============================================================
+
+    var penalty=0;
+
+
+    // اگر نزدیک سقف مجاز هستیم، دیگر شکار صف فروش نیست.
+    var upperDistance=(tmax-pl)/band;
+
+
+    if(upperDistance<0.10)
+        penalty+=20;
+
+
+    // اگر قیمت بیش از حد از کف فاصله گرفته، ورود دیر شده است.
+    if(lowerDistance>0.18)
+        penalty+=15;
+
+
+    // اگر هنوز هیچ نشانه ای از خروج قیمت نیست
+    if(pl==tmin &&
+       pmax==tmin)
+        penalty+=15;
+
+
+    // قدرت خریدار پایین
+    if(buyerPower<1.50)
+        penalty+=12;
+
+
+    // جریان حقیقی ضعیف
+    if(realRatio<0.10)
+        penalty+=8;
+
+
+    // ============================================================
+    // 24. FINAL SCORE
+    // ============================================================
+
+    var finalScore=
+        buyerScore
+        +moneyScore
+        +bookScore
+        +firstScore
+        +escapePoints
+        +participationScore
+        +recoveryScore
+        +historyScore
+        +absorptionScore
+        -penalty;
+
+
+    // ============================================================
+    // 25. MULTI-CONFIRMATION
+    // ============================================================
+
+    var confirmations=0;
+
+
+    if(buyerPower>=1.70)
+        confirmations++;
+
+    if(realRatio>=0.12)
+        confirmations++;
+
+    if(bidAskRatio>=0.70)
+        confirmations++;
+
+    if(firstLevelRatio>=0.70)
+        confirmations++;
+
+    if(pl>tmin)
+        confirmations++;
+
+    if(pmax>tmin)
+        confirmations++;
+
+    if(volumeParticipation>=0.50)
+        confirmations++;
+
+    if(tradeParticipation>=0.50)
+        confirmations++;
+
+    if(recoveryPosition>=30)
+        confirmations++;
+
+
+    // حداقل پنج نشانه مستقل
+    if(confirmations<5)
+        return false;
+
+
+    // ============================================================
+    // 26. FINAL QUALITY GATE
+    // ============================================================
+
+    if(finalScore>=125)
+        return true;
+
+
+    return false;
+
+}()
+

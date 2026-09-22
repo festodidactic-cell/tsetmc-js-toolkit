@@ -1,0 +1,945 @@
+
+true==function()
+{
+    /*
+    ================================================================
+    SRS
+    SHARP REGIME SENTINEL
+    Filter 13
+
+    مأموریت:
+
+    1) کشف سهم قبل از شروع شارپ
+    2) تشخیص شروع شارپ
+    3) تأیید شارپ در حال اجرا
+    4) اجازه ادامه حضور در سهم تا زمانی که رژیم صعودی سالم است
+    5) تشخیص زودهنگام تضعیف روند
+    6) بی‌اثر کردن صف خرید به عنوان "دلیل خروج"
+    7) جلوگیری از اعتماد کورکورانه به صف خرید
+    8) استفاده همزمان از:
+       - قیمت
+       - حجم
+       - ساختار روند
+       - RSI
+       - قدرت خریدار
+       - حقیقی/حقوقی
+       - انباشت
+       - شتاب قیمت
+       - ثبات کف
+       - مقاومت
+       - فشار فروش
+       - وضعیت صف
+       - بنیاد مقدماتی EPS/PE
+
+    توجه:
+    این فیلتر "ضمانت سود" یا "ضمانت عدم افت" نیست.
+    ================================================================
+    */
+
+
+    // ================================================================
+    // 1. حداقل سابقه
+    // ================================================================
+
+    if(typeof [ih]=="undefined")
+        return false;
+
+    if([ih].length<30)
+        return false;
+
+    if(pl<=0 || pc<=0 || py<=0)
+        return false;
+
+
+    // ================================================================
+    // 2. نقدشوندگی و سلامت معاملاتی
+    // ================================================================
+
+    if([is40]<70)
+        return false;
+
+    if([is1]<=0 || [is5]<=0 || [is9]<=0)
+        return false;
+
+    if(tval<=0 || tno<=0 || tvol<=0)
+        return false;
+
+
+    // ================================================================
+    // 3. محاسبه میانگین قیمت
+    // ================================================================
+
+    var sum5=0;
+    var sum10=0;
+    var sum20=0;
+    var sum40=0;
+    var sum60=0;
+
+    var cnt5=0;
+    var cnt10=0;
+    var cnt20=0;
+    var cnt40=0;
+    var cnt60=0;
+
+    var high20=0;
+    var low20=999999999999;
+
+    var high60=0;
+    var low60=999999999999;
+
+    var vol5=0;
+    var vol20=0;
+
+
+    for(var i=0;i<[ih].length;i++)
+    {
+        if(typeof [ih][i]=="undefined")
+            continue;
+
+        var cp=[ih][i].PClosing;
+        var vv=[ih][i].QTotTran5J;
+
+        if(cp<=0)
+            continue;
+
+
+        if(i<5)
+        {
+            sum5+=cp;
+            cnt5++;
+            vol5+=vv;
+        }
+
+        if(i<10)
+        {
+            sum10+=cp;
+            cnt10++;
+        }
+
+        if(i<20)
+        {
+            sum20+=cp;
+            cnt20++;
+            vol20+=vv;
+
+            if(cp>high20)
+                high20=cp;
+
+            if(cp<low20)
+                low20=cp;
+        }
+
+        if(i<40)
+        {
+            sum40+=cp;
+            cnt40++;
+        }
+
+        if(i<60)
+        {
+            sum60+=cp;
+            cnt60++;
+
+            if(cp>high60)
+                high60=cp;
+
+            if(cp<low60)
+                low60=cp;
+        }
+    }
+
+
+    if(cnt5<5 || cnt20<15 || cnt40<25)
+        return false;
+
+
+    var ma5=sum5/cnt5;
+    var ma10=sum10/cnt10;
+    var ma20=sum20/cnt20;
+    var ma40=sum40/cnt40;
+
+    var avgVol5=vol5/cnt5;
+    var avgVol20=vol20/cnt20;
+
+
+    // ================================================================
+    // 4. ساختار روند
+    // ================================================================
+
+    var trendScore=0;
+
+
+    if(ma5>ma10)
+        trendScore+=10;
+
+    if(ma10>ma20)
+        trendScore+=10;
+
+    if(ma20>ma40)
+        trendScore+=10;
+
+    if(pc>ma5)
+        trendScore+=8;
+
+    if(pc>ma20)
+        trendScore+=10;
+
+
+    // ================================================================
+    // 5. شتاب قیمت
+    // ================================================================
+
+    var change5=0;
+    var change10=0;
+    var change20=0;
+    var change40=0;
+
+
+    if(typeof [ih][5]!="undefined" &&
+       [ih][5].PClosing>0)
+    {
+        change5=
+            pc/[ih][5].PClosing-1;
+    }
+
+
+    if(typeof [ih][10]!="undefined" &&
+       [ih][10].PClosing>0)
+    {
+        change10=
+            pc/[ih][10].PClosing-1;
+    }
+
+
+    if(typeof [ih][20]!="undefined" &&
+       [ih][20].PClosing>0)
+    {
+        change20=
+            pc/[ih][20].PClosing-1;
+    }
+
+
+    if(typeof [ih][40]!="undefined" &&
+       [ih][40].PClosing>0)
+    {
+        change40=
+            pc/[ih][40].PClosing-1;
+    }
+
+
+    var momentumScore=0;
+
+
+    if(change5>0.03)
+        momentumScore+=8;
+
+    if(change5>0.07)
+        momentumScore+=8;
+
+    if(change10>0.05)
+        momentumScore+=8;
+
+    if(change10>0.12)
+        momentumScore+=10;
+
+    if(change20>0.08)
+        momentumScore+=10;
+
+    if(change20>0.20)
+        momentumScore+=10;
+
+    if(change40>0.15)
+        momentumScore+=8;
+
+
+    // ================================================================
+    // 6. حجم و تأیید حرکت
+    // ================================================================
+
+    var volumeScore=0;
+
+    if(avgVol20>0)
+    {
+        var volumeRatio=avgVol5/avgVol20;
+
+        if(volumeRatio>1.15)
+            volumeScore+=8;
+
+        if(volumeRatio>1.40)
+            volumeScore+=10;
+
+        if(volumeRatio>1.80)
+            volumeScore+=10;
+    }
+
+
+    // ================================================================
+    // 7. قدرت خریدار حقیقی جاری
+    // ================================================================
+
+    var realBuyerPower=1;
+
+    if((ct).Buy_CountI>0 &&
+       (ct).Sell_CountI>0 &&
+       (ct).Buy_I_Volume>0 &&
+       (ct).Sell_I_Volume>0)
+    {
+        var avgBuy=
+            (ct).Buy_I_Volume/
+            (ct).Buy_CountI;
+
+        var avgSell=
+            (ct).Sell_I_Volume/
+            (ct).Sell_CountI;
+
+        if(avgSell>0)
+            realBuyerPower=avgBuy/avgSell;
+    }
+
+
+    var currentFlow=0;
+
+    if((ct).Buy_I_Volume+
+       (ct).Sell_I_Volume>0)
+    {
+        currentFlow=
+        ((ct).Buy_I_Volume-
+         (ct).Sell_I_Volume)/
+        ((ct).Buy_I_Volume+
+         (ct).Sell_I_Volume);
+    }
+
+
+    var buyerScore=0;
+
+
+    if(realBuyerPower>1.20)
+        buyerScore+=8;
+
+    if(realBuyerPower>1.50)
+        buyerScore+=10;
+
+    if(realBuyerPower>2.00)
+        buyerScore+=10;
+
+    if(currentFlow>0.03)
+        buyerScore+=5;
+
+    if(currentFlow>0.10)
+        buyerScore+=8;
+
+    if(currentFlow>0.20)
+        buyerScore+=8;
+
+
+    // ================================================================
+    // 8. انباشت تاریخی
+    // ================================================================
+
+    var accumulationScore=0;
+
+
+    if([is50]>[is70])
+        accumulationScore+=8;
+
+    if([is51]>[is71])
+        accumulationScore+=10;
+
+    if([is54]>[is74])
+        accumulationScore+=5;
+
+    if([is55]>[is75])
+        accumulationScore+=7;
+
+
+    if([is58]>0 &&
+       [is59]>0)
+    {
+        if([is50]/[is58] >
+           [is70]/[is78])
+        {
+            accumulationScore+=10;
+        }
+
+        if([is51]/[is59] >
+           [is71]/[is79])
+        {
+            accumulationScore+=10;
+        }
+    }
+
+
+    // ================================================================
+    // 9. RSI محاسبه می‌شود
+    // ================================================================
+
+    var rsi=50;
+
+    var period=14;
+
+    if([ih].length>=period+2)
+    {
+        var gainSum=0;
+        var lossSum=0;
+
+        for(var r=0;r<period;r++)
+        {
+            var a=[ih][r].PClosing;
+            var b=[ih][r+1].PClosing;
+
+            if(a>b)
+                gainSum+=(a-b);
+            else
+                lossSum+=(b-a);
+        }
+
+        var avgGain=gainSum/period;
+        var avgLoss=lossSum/period;
+
+        if(avgLoss==0)
+        {
+            rsi=100;
+        }
+        else
+        {
+            var rs=avgGain/avgLoss;
+            rsi=100-(100/(1+rs));
+        }
+    }
+
+
+    var rsiScore=0;
+
+
+    /*
+       برای سهم شارپی RSI بالا لزوماً فروش نیست.
+       RSI بالای 70 در روند قوی می‌تواند نشانه قدرت باشد.
+       بنابراین صرفاً به خاطر overbought سهم را حذف نمی‌کنیم.
+    */
+
+    if(rsi>=50 && rsi<=75)
+        rsiScore+=10;
+
+    if(rsi>75 && rsi<=88)
+        rsiScore+=6;
+
+    if(rsi>88)
+        rsiScore-=8;
+
+    if(rsi<35)
+        rsiScore-=15;
+
+
+    // ================================================================
+    // 10. سلامت کف
+    // ================================================================
+
+    var floorScore=0;
+
+
+    if(low20>0)
+    {
+        var distanceLow20=
+            (pc-low20)/low20;
+
+        if(distanceLow20>=0)
+            floorScore+=5;
+
+        if(distanceLow20>0.05)
+            floorScore+=5;
+
+        if(distanceLow20>0.12)
+            floorScore+=5;
+    }
+
+
+    /*
+       اگر قیمت در 60 روز گذشته به شدت سقوط کرده
+       ولی هنوز برگشت ساختاری شکل نگرفته، احتیاط.
+    */
+
+    if(change40<-0.20)
+        floorScore-=20;
+
+    if(change40<-0.35)
+        floorScore-=30;
+
+
+    // ================================================================
+    // 11. تشخیص نزدیک شدن به سقف تاریخی کوتاه مدت
+    // ================================================================
+
+    var nearHigh20=false;
+
+    if(high20>0)
+    {
+        var highDistance=
+            (high20-pc)/high20;
+
+        if(highDistance<=0.03)
+            nearHigh20=true;
+    }
+
+
+    /*
+       نزدیک سقف بودن خودش بد نیست.
+       اما اگر قدرت خرید و حجم تأیید نکنند،
+       ریسک شکست بالا می‌رود.
+    */
+
+    var resistancePenalty=0;
+
+
+    if(nearHigh20)
+    {
+        if(realBuyerPower<1.20)
+            resistancePenalty-=10;
+
+        if(avgVol5<avgVol20*0.90)
+            resistancePenalty-=10;
+    }
+
+
+    // ================================================================
+    // 12. تشخیص صف خرید
+    // ================================================================
+
+    var inBuyQueue=false;
+
+    if(tmax>0 && pl>=tmax)
+    {
+        if(qd1>0)
+            inBuyQueue=true;
+    }
+
+
+    /*
+       صف خرید را حذف نمی‌کنیم.
+
+       صف خرید قوی + سابقه قوی
+       می‌تواند بهترین حالت ادامه روند باشد.
+
+       اما صف خرید به تنهایی هیچ امتیاز بزرگی نمی‌گیرد.
+    */
+
+    var queueScore=0;
+
+
+    if(inBuyQueue)
+    {
+        if(realBuyerPower>=1.20)
+            queueScore+=5;
+
+        if(realBuyerPower>=1.50)
+            queueScore+=5;
+
+        if(currentFlow>0.05)
+            queueScore+=5;
+    }
+
+
+    // ================================================================
+    // 13. اگر صف خرید باز شد، کیفیت صف مهم‌تر از خود صف است
+    // ================================================================
+
+    var queueResilience=0;
+
+
+    if(inBuyQueue==false)
+    {
+        if(pl>pc)
+            queueResilience+=5;
+
+        if(pc>ma5)
+            queueResilience+=5;
+
+        if(realBuyerPower>=1.30)
+            queueResilience+=8;
+
+        if(currentFlow>0.05)
+            queueResilience+=7;
+    }
+
+
+    // ================================================================
+    // 14. فشار فروش
+    // ================================================================
+
+    var sellingRisk=0;
+
+
+    if(realBuyerPower<0.90)
+        sellingRisk+=15;
+
+    if(realBuyerPower<0.75)
+        sellingRisk+=20;
+
+    if(currentFlow<-0.10)
+        sellingRisk+=10;
+
+    if(currentFlow<-0.20)
+        sellingRisk+=15;
+
+
+    /*
+       افت قیمت همراه با فشار فروش
+       خطرناک‌تر از صرفاً افت قیمت است.
+    */
+
+    if(pl<pc && currentFlow<-0.10)
+        sellingRisk+=8;
+
+
+    // ================================================================
+    // 15. تشخیص کندل ضعیف اخیر
+    // ================================================================
+
+    var weakCandleRisk=0;
+
+
+    if(typeof [ih][0]!="undefined")
+    {
+        var todayClose=[ih][0].PClosing;
+        var todayOpen=[ih][0].PriceFirst;
+        var todayHigh=[ih][0].PriceMax;
+        var todayLow=[ih][0].PriceMin;
+
+        if(todayHigh>0 && todayLow>0)
+        {
+            var range=todayHigh-todayLow;
+
+            if(range>0)
+            {
+                var closePosition=
+                    (todayClose-todayLow)/range;
+
+                if(closePosition<0.25)
+                    weakCandleRisk+=15;
+
+                if(closePosition<0.15)
+                    weakCandleRisk+=15;
+            }
+        }
+    }
+
+
+    // ================================================================
+    // 16. Fundamental sanity check
+    // ================================================================
+
+    var fundamentalScore=0;
+
+
+    /*
+       بنیاد فقط امتیاز می‌دهد؛
+       به دلیل محدودیت داده، آن را به تنهایی
+       عامل خرید نمی‌کنیم.
+    */
+
+    if(eps>0)
+        fundamentalScore+=5;
+
+    if(pe>0 && pe<15)
+        fundamentalScore+=8;
+
+    if(pe>=15 && pe<25)
+        fundamentalScore+=5;
+
+    if(pe>50)
+        fundamentalScore-=8;
+
+
+    // ================================================================
+    // 17. کیفیت روند قبلی
+    // ================================================================
+
+    var stabilityScore=0;
+
+
+    var badDays=0;
+
+    for(var s=0;s<20;s++)
+    {
+        if(typeof [ih][s]!="undefined" &&
+           [ih][s].PClosing>0 &&
+           [ih][s].PriceYesterday>0)
+        {
+            var dailyReturn=
+                [ih][s].PClosing/
+                [ih][s].PriceYesterday-1;
+
+            if(dailyReturn<-0.06)
+                badDays++;
+        }
+    }
+
+
+    if(badDays==0)
+        stabilityScore+=15;
+
+    if(badDays<=1)
+        stabilityScore+=8;
+
+    if(badDays>=4)
+        stabilityScore-=20;
+
+    if(badDays>=6)
+        stabilityScore-=30;
+
+
+    // ================================================================
+    // 18. شکست روند را قبل از خروج کامل شکار کنیم
+    // ================================================================
+
+    var regimeRisk=0;
+
+
+    /*
+       اگر MA5 زیر MA10 برود ولی MA20 هنوز سالم باشد،
+       این را شکست قطعی نمی‌دانیم.
+    */
+
+    if(ma5<ma10)
+        regimeRisk+=8;
+
+    if(ma10<ma20)
+        regimeRisk+=12;
+
+    if(pc<ma20)
+        regimeRisk+=15;
+
+    if(pc<ma40)
+        regimeRisk+=25;
+
+
+    /*
+       افت قیمت + قدرت فروش + شکست MA20
+       بسیار مهم‌تر است.
+    */
+
+    if(pc<ma20 &&
+       realBuyerPower<0.90 &&
+       currentFlow<-0.10)
+    {
+        regimeRisk+=25;
+    }
+
+
+    // ================================================================
+    // 19. تشخیص "قبل از شارپ"
+    // ================================================================
+
+    var preSharp=false;
+
+
+    if(pc>=ma20*0.97 &&
+       pc<=ma20*1.08 &&
+       realBuyerPower>=1.40 &&
+       accumulationScore>=20 &&
+       avgVol5>=avgVol20*0.90)
+    {
+        preSharp=true;
+    }
+
+
+    // ================================================================
+    // 20. تشخیص "شروع شارپ"
+    // ================================================================
+
+    var sharpStart=false;
+
+
+    if(change5>=0.03 &&
+       change10>=0.05 &&
+       realBuyerPower>=1.30 &&
+       avgVol5>=avgVol20*1.20)
+    {
+        sharpStart=true;
+    }
+
+
+    // ================================================================
+    // 21. تشخیص "شارپ فعال"
+    // ================================================================
+
+    var sharpActive=false;
+
+
+    if(change10>=0.10 &&
+       change20>=0.15 &&
+       pc>ma20 &&
+       ma5>ma10 &&
+       realBuyerPower>=1.20)
+    {
+        sharpActive=true;
+    }
+
+
+    // ================================================================
+    // 22. تشخیص "روند قوی و قابل نگهداری"
+    // ================================================================
+
+    var holdRegime=false;
+
+
+    if(pc>ma20 &&
+       ma5>=ma10 &&
+       ma10>=ma20 &&
+       realBuyerPower>=1.10 &&
+       currentFlow>=-0.05 &&
+       regimeRisk<=15)
+    {
+        holdRegime=true;
+    }
+
+
+    // ================================================================
+    // 23. امتیاز نهایی
+    // ================================================================
+
+    var score=0;
+
+    score+=trendScore;
+    score+=momentumScore;
+    score+=volumeScore;
+    score+=buyerScore;
+    score+=accumulationScore;
+    score+=rsiScore;
+    score+=floorScore;
+    score+=resistancePenalty;
+    score+=queueScore;
+    score+=queueResilience;
+    score+=fundamentalScore;
+    score+=stabilityScore;
+
+    score-=sellingRisk;
+    score-=weakCandleRisk;
+    score-=regimeRisk;
+
+
+    // ================================================================
+    // 24. سه مسیر مجاز برای خروجی
+    // ================================================================
+
+    var validSignal=false;
+
+
+    /*
+       A) قبل از شارپ:
+       برای زیر نظر گرفتن، نه الزاماً خرید فوری
+    */
+
+    if(preSharp &&
+       score>=115 &&
+       regimeRisk<=18)
+    {
+        validSignal=true;
+    }
+
+
+    /*
+       B) شروع شارپ:
+       نقطه بسیار مهم
+    */
+
+    if(sharpStart &&
+       score>=125 &&
+       regimeRisk<=18 &&
+       sellingRisk<=20)
+    {
+        validSignal=true;
+    }
+
+
+    /*
+       C) شارپ فعال / ادامه روند:
+       برای کسی که قبلاً داخل سهم است
+    */
+
+    if(sharpActive &&
+       score>=115 &&
+       regimeRisk<=22 &&
+       sellingRisk<=25)
+    {
+        validSignal=true;
+    }
+
+
+    /*
+       D) سهم در حال نگهداری:
+       اگر روند ساختاری هنوز سالم است
+    */
+
+    if(holdRegime &&
+       score>=105 &&
+       regimeRisk<=15 &&
+       sellingRisk<=20)
+    {
+        validSignal=true;
+    }
+
+
+    // ================================================================
+    // 25. جلوگیری از خروج صرفاً به دلیل صف خرید
+    // ================================================================
+
+    /*
+       اگر سهم در صف خرید است و هیچ نشانه ساختاری
+       از خراب شدن روند وجود ندارد، صف خرید نباید
+       باعث حذف سهم شود.
+    */
+
+    if(inBuyQueue &&
+       ma5>ma10 &&
+       ma10>ma20 &&
+       realBuyerPower>=1.10 &&
+       regimeRisk<=12 &&
+       sellingRisk<=15)
+    {
+        validSignal=true;
+    }
+
+
+    // ================================================================
+    // 26. اما صف خرید ضعیف را قبول نمی‌کنیم
+    // ================================================================
+
+    if(inBuyQueue &&
+       currentFlow<-0.15 &&
+       realBuyerPower<0.90)
+    {
+        validSignal=false;
+    }
+
+
+    // ================================================================
+    // 27. قفل شدن خطرناک / شکست رژیم
+    // ================================================================
+
+    if(pc<ma20 &&
+       ma20<ma40 &&
+       currentFlow<-0.15 &&
+       realBuyerPower<0.90)
+    {
+        validSignal=false;
+    }
+
+
+    // ================================================================
+    // 28. سقوط شدید اخیر
+    // ================================================================
+
+    if(change20<-0.25 &&
+       pc<ma20)
+    {
+        validSignal=false;
+    }
+
+
+    // ================================================================
+    // FINAL
+    // ================================================================
+
+    return validSignal;
+
+}()

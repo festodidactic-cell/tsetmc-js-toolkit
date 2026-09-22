@@ -56,3 +56,7 @@ Market conditions, liquidity, price limits, and TSETMC data structures may chang
 
 The toolkit is under active development. Existing filters are being reorganized into reusable modules and accompanied by documentation and test cases.
 Update README with license information
+
+## License
+
+This project is released under the MIT License.

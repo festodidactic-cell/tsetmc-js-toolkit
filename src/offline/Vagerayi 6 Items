@@ -1,0 +1,390 @@
+
+true==function()
+{
+    /*
+    ================================================================
+    DIVE-6X
+    SIX-FACTOR DIVERGENCE CONFLUENCE
+
+    هدف:
+    شناسایی موارد بسیار نادر که در یک ساختار مشترک Pivot،
+    هر 6 مؤلفه زیر همزمان واگرایی مثبت نشان می‌دهند:
+
+    1) MFI
+    2) CCI
+    3) RSI
+    4) Stochastic
+    5) MACD Histogram
+    6) Volume
+
+    کاربرد:
+    WATCHLIST / RARE EVENT
+
+    این فیلتر سیگنال خرید نیست.
+    ================================================================
+    */
+
+    if(typeof [ih]=="undefined")
+        return false;
+
+    if([ih].length<45)
+        return false;
+
+
+    var len=Math.min([ih].length,60);
+
+    var P=[];
+    var H=[];
+    var L=[];
+    var V=[];
+    var TP=[];
+
+
+    // ================================================================
+    // DATA
+    // ================================================================
+
+    for(var i=0;i<len;i++)
+    {
+        if(typeof [ih][i]=="undefined")
+            return false;
+
+        P[i]=[ih][i].PClosing;
+        H[i]=[ih][i].PriceMax;
+        L[i]=[ih][i].PriceMin;
+        V[i]=[ih][i].QTotTran5J;
+
+        if(P[i]<=0 || H[i]<=0 || L[i]<=0)
+            return false;
+
+        TP[i]=(H[i]+L[i]+P[i])/3;
+    }
+
+
+    // ================================================================
+    // EMA
+    // ================================================================
+
+    var EMA=function(arr,period)
+    {
+        var out=[];
+        var alpha=2/(period+1);
+
+        out[0]=arr[0];
+
+        for(var i=1;i<arr.length;i++)
+        {
+            out[i]=
+                alpha*arr[i]+
+                (1-alpha)*out[i-1];
+        }
+
+        return out;
+    };
+
+
+    // ================================================================
+    // RSI
+    // ================================================================
+
+    var RSI=[];
+
+    for(var i=0;i<len;i++)
+    {
+        var gain=0;
+        var loss=0;
+
+        var start=Math.min(len-1,i+13);
+
+        for(var j=i;j<start;j++)
+        {
+            var ch=P[j]-P[j+1];
+
+            if(ch>0)
+                gain+=ch;
+            else
+                loss-=ch;
+        }
+
+        if(loss==0)
+            RSI[i]=100;
+        else
+        {
+            var rs=gain/loss;
+            RSI[i]=100-(100/(1+rs));
+        }
+    }
+
+
+    // ================================================================
+    // MFI
+    // ================================================================
+
+    var MFI=[];
+
+    for(var i=0;i<len;i++)
+    {
+        var pos=0;
+        var neg=0;
+
+        var start=Math.min(len-1,i+13);
+
+        for(var j=i;j<start;j++)
+        {
+            var money=TP[j]*V[j];
+
+            if(TP[j]>TP[j+1])
+                pos+=money;
+
+            if(TP[j]<TP[j+1])
+                neg+=money;
+        }
+
+        if(neg==0)
+            MFI[i]=100;
+        else
+        {
+            var ratio=pos/neg;
+            MFI[i]=100-(100/(1+ratio));
+        }
+    }
+
+
+    // ================================================================
+    // CCI
+    // ================================================================
+
+    var CCI=[];
+
+    for(var i=0;i<len;i++)
+    {
+        var start=Math.min(len-1,i+19);
+
+        var sum=0;
+        var count=0;
+
+        for(var j=i;j<=start;j++)
+        {
+            sum+=TP[j];
+            count++;
+        }
+
+        var mean=sum/count;
+
+        var dev=0;
+
+        for(var j=i;j<=start;j++)
+            dev+=Math.abs(TP[j]-mean);
+
+        dev=dev/count;
+
+        if(dev==0)
+            CCI[i]=0;
+        else
+            CCI[i]=(TP[i]-mean)/(0.015*dev);
+    }
+
+
+    // ================================================================
+    // STOCHASTIC
+    // ================================================================
+
+    var STOCH=[];
+
+    for(var i=0;i<len;i++)
+    {
+        var start=Math.min(len-1,i+13);
+
+        var highest=H[i];
+        var lowest=L[i];
+
+        for(var j=i;j<=start;j++)
+        {
+            if(H[j]>highest)
+                highest=H[j];
+
+            if(L[j]<lowest)
+                lowest=L[j];
+        }
+
+        if(highest==lowest)
+            STOCH[i]=50;
+        else
+            STOCH[i]=
+                100*
+                (P[i]-lowest)/
+                (highest-lowest);
+    }
+
+
+    // ================================================================
+    // MACD HISTOGRAM
+    // ================================================================
+
+    var ema12=EMA(P,12);
+    var ema26=EMA(P,26);
+
+    var MACD=[];
+
+    for(var i=0;i<len;i++)
+        MACD[i]=ema12[i]-ema26[i];
+
+    var signal=EMA(MACD,9);
+
+    var MACDH=[];
+
+    for(var i=0;i<len;i++)
+        MACDH[i]=MACD[i]-signal[i];
+
+
+    // ================================================================
+    // VOLUME OSCILLATOR
+    // ================================================================
+
+    var VOL=[];
+
+    for(var i=0;i<len;i++)
+    {
+        var start5=Math.min(len-1,i+4);
+        var start20=Math.min(len-1,i+19);
+
+        var s5=0;
+        var c5=0;
+
+        var s20=0;
+        var c20=0;
+
+        for(var j=i;j<=start5;j++)
+        {
+            s5+=V[j];
+            c5++;
+        }
+
+        for(var j=i;j<=start20;j++)
+        {
+            s20+=V[j];
+            c20++;
+        }
+
+        var av5=s5/c5;
+        var av20=s20/c20;
+
+        if(av20==0)
+            VOL[i]=0;
+        else
+            VOL[i]=(av5/av20)*100;
+    }
+
+
+    // ================================================================
+    // PIVOT LOW
+    // ================================================================
+
+    var pivotLow=function(i)
+    {
+        if(i<3 || i>len-4)
+            return false;
+
+        return(
+            L[i]<=L[i-1] &&
+            L[i]<=L[i-2] &&
+            L[i]<=L[i+1] &&
+            L[i]<=L[i+2]
+        );
+    };
+
+
+    // ================================================================
+    // TWO COMMON PRICE PIVOTS
+    // ================================================================
+
+    var recent=-1;
+    var old=-1;
+
+    for(var i=3;i<len-3;i++)
+    {
+        if(pivotLow(i))
+        {
+            if(recent==-1)
+                recent=i;
+            else
+            {
+                old=i;
+                break;
+            }
+        }
+    }
+
+
+    if(recent==-1 || old==-1)
+        return false;
+
+
+    var gap=old-recent;
+
+    if(gap<5)
+        return false;
+
+
+    // ================================================================
+    // BULLISH DIVERGENCE
+    //
+    // فقط Regular Bullish:
+    //
+    // Price Low 2 < Price Low 1
+    // Indicator Low 2 > Indicator Low 1
+    //
+    // برای این نسخه عمداً Hidden Divergence را وارد نکرده‌ایم،
+    // زیرا هدف کشف یک رویداد بسیار قوی reversal است.
+    // ================================================================
+
+    var bullishDivergence=function(ind)
+    {
+        return(
+            L[recent]<L[old] &&
+            ind[recent]>ind[old]
+        );
+    };
+
+
+    // ================================================================
+    // SIX CONFIRMATIONS
+    // ================================================================
+
+    var dMFI=
+        bullishDivergence(MFI);
+
+    var dCCI=
+        bullishDivergence(CCI);
+
+    var dRSI=
+        bullishDivergence(RSI);
+
+    var dSTOCH=
+        bullishDivergence(STOCH);
+
+    var dMACD=
+        bullishDivergence(MACDH);
+
+    var dVOL=
+        bullishDivergence(VOL);
+
+
+    // ================================================================
+    // STRICT SIX-WAY CONFLUENCE
+    // ================================================================
+
+    if(
+        dMFI &&
+        dCCI &&
+        dRSI &&
+        dSTOCH &&
+        dMACD &&
+        dVOL
+    )
+        return true;
+
+
+    return false;
+
+}()

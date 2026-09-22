@@ -1,0 +1,1020 @@
+
+true==function()
+{
+    // ============================================================
+    // FILTER 03
+    // PRE-BREAKOUT IGNITION SCORE
+    //
+    // هدف:
+    // شناسایی سهم هایی که:
+    //
+    // 1) نقدشوندگی مناسب دارند
+    // 2) سابقه معاملاتی کافی و سالم دارند
+    // 3) در 60 روز گذشته یک Base / Accumulation قابل قبول ساخته اند
+    // 4) چند واکنش به ناحیه حمایتی داشته اند
+    // 5) اکنون به مقاومت مهم 60 روزه نزدیک شده اند
+    // 6) فاصله آنها تا مقاومت کم ولی هنوز قابل ورود است
+    // 7) دامنه نوسان آنها فشرده شده است
+    // 8) حجم در حال افزایش است
+    // 9) حجم فعلی نسبت به میانگین خودش افزایش یافته است
+    // 10) قیمت در حال حفظ سطوح بالاتر است
+    // 11) قدرت خریدار حقیقی فعلی مناسب است
+    // 12) خالص خرید حقیقی مثبت است
+    // 13) RSI از ناحیه ضعیف خارج شده یا واگرایی مثبت دارد
+    // 14) سهم هنوز در صف خرید قفل نشده است
+    // 15) فضای رشد تا مقاومت های بالاتر دارد
+    // 16) از نظر اولیه EPS و P/E وضعیت نامناسبی ندارد
+    //
+    // این فیلتر OFFLINE / EOD است.
+    //
+    // این فیلتر برای شکار لحظه ای شکست طراحی نشده است.
+    // هدف آن پیدا کردن سهم در مرحله PRE-BREAKOUT است.
+    //
+    // سابقه روزانه مورد استفاده: حداکثر 60 روز
+    //
+    // توجه:
+    // داده تاریخی حقیقی/حقوقی روزانه در [ih] وجود ندارد.
+    // بنابراین قدرت خریدار تاریخی به صورت ساختگی تولید نشده
+    // و فقط داده جاری (ct) استفاده شده است.
+    // ============================================================
+
+
+    // ------------------------------------------------------------
+    // حداقل سابقه
+    // ------------------------------------------------------------
+
+    if(typeof [ih][59]=="undefined")
+        return false;
+
+
+    // ------------------------------------------------------------
+    // تعداد روزهای معتبر
+    // ------------------------------------------------------------
+
+    var ValidDays=function(n)
+    {
+        var c=0;
+
+        for(var i=0;i<n;i++)
+        {
+            if(typeof [ih][i]!="undefined" &&
+               [ih][i].PriceMin>0 &&
+               [ih][i].PriceMax>0 &&
+               [ih][i].PClosing>0 &&
+               [ih][i].QTotTran5J>0)
+            {
+                c++;
+            }
+        }
+
+        return c;
+    };
+
+
+    if(ValidDays(60)<50)
+        return false;
+
+
+    // ============================================================
+    // BASIC PRICE FUNCTIONS
+    // ============================================================
+
+    var MinPrice=function(n)
+    {
+        var min=999999999999;
+
+        for(var i=0;i<n;i++)
+        {
+            if(typeof [ih][i]!="undefined" &&
+               [ih][i].PriceMin>0 &&
+               [ih][i].PriceMin<min)
+            {
+                min=[ih][i].PriceMin;
+            }
+        }
+
+        return min;
+    };
+
+
+    var MaxPrice=function(n)
+    {
+        var max=0;
+
+        for(var i=0;i<n;i++)
+        {
+            if(typeof [ih][i]!="undefined" &&
+               [ih][i].PriceMax>max)
+            {
+                max=[ih][i].PriceMax;
+            }
+        }
+
+        return max;
+    };
+
+
+    var AvgVolume=function(n)
+    {
+        var sum=0;
+        var c=0;
+
+        for(var i=0;i<n;i++)
+        {
+            if(typeof [ih][i]!="undefined" &&
+               [ih][i].QTotTran5J>0)
+            {
+                sum += [ih][i].QTotTran5J;
+                c++;
+            }
+        }
+
+        if(c==0)
+            return 0;
+
+        return sum/c;
+    };
+
+
+    // ============================================================
+    // AVERAGE DAILY RANGE
+    // ============================================================
+
+    var AvgRange=function(n)
+    {
+        var sum=0;
+        var c=0;
+
+        for(var i=0;i<n;i++)
+        {
+            if(typeof [ih][i]!="undefined" &&
+               [ih][i].PriceYesterday>0 &&
+               [ih][i].PriceMax>0 &&
+               [ih][i].PriceMin>0)
+            {
+                sum +=
+                ([ih][i].PriceMax-[ih][i].PriceMin)
+                /[ih][i].PriceYesterday;
+
+                c++;
+            }
+        }
+
+        if(c==0)
+            return 0;
+
+        return sum/c;
+    };
+
+
+    // ============================================================
+    // UP VOLUME / DOWN VOLUME
+    // ============================================================
+
+    var UpVolume=function(n)
+    {
+        var sum=0;
+
+        for(var i=0;i<n;i++)
+        {
+            if(typeof [ih][i]!="undefined" &&
+               [ih][i].PClosing>[ih][i].PriceYesterday &&
+               [ih][i].QTotTran5J>0)
+            {
+                sum += [ih][i].QTotTran5J;
+            }
+        }
+
+        return sum;
+    };
+
+
+    var DownVolume=function(n)
+    {
+        var sum=0;
+
+        for(var i=0;i<n;i++)
+        {
+            if(typeof [ih][i]!="undefined" &&
+               [ih][i].PClosing<[ih][i].PriceYesterday &&
+               [ih][i].QTotTran5J>0)
+            {
+                sum += [ih][i].QTotTran5J;
+            }
+        }
+
+        return sum;
+    };
+
+
+    // ============================================================
+    // SUPPORT TOUCHES
+    //
+    // چند واکنش به 10 درصد بالاتر از کف 60 روزه
+    // ============================================================
+
+    var SupportTouches=function()
+    {
+        var min60=MinPrice(60);
+
+        if(min60<=0)
+            return 0;
+
+        var c=0;
+
+        for(var i=2;i<58;i++)
+        {
+            if(typeof [ih][i]!="undefined" &&
+               typeof [ih][i-1]!="undefined" &&
+               typeof [ih][i+1]!="undefined")
+            {
+                var low=[ih][i].PriceMin;
+
+                if(low>0 &&
+                   low<=min60*1.10 &&
+                   low<=[ih][i-1].PriceMin*1.02 &&
+                   low<=[ih][i+1].PriceMin*1.02)
+                {
+                    c++;
+                }
+            }
+        }
+
+        return c;
+    };
+
+
+    // ============================================================
+    // LOCAL LOW
+    // ============================================================
+
+    var LocalLow=function(n)
+    {
+        var min=999999999999;
+
+        for(var i=0;i<n;i++)
+        {
+            if(typeof [ih][i]!="undefined" &&
+               [ih][i].PriceMin>0 &&
+               [ih][i].PriceMin<min)
+            {
+                min=[ih][i].PriceMin;
+            }
+        }
+
+        return min;
+    };
+
+
+    // ============================================================
+    // LOCAL HIGH
+    // ============================================================
+
+    var LocalHigh=function(n)
+    {
+        var max=0;
+
+        for(var i=0;i<n;i++)
+        {
+            if(typeof [ih][i]!="undefined" &&
+               [ih][i].PriceMax>max)
+            {
+                max=[ih][i].PriceMax;
+            }
+        }
+
+        return max;
+    };
+
+
+    // ============================================================
+    // HIGHER LOW STRUCTURE
+    //
+    // بررسی می کند آیا کف های اخیر در حال بالاتر آمدن هستند.
+    // ============================================================
+
+    var HigherLow=function()
+    {
+        var low10=LocalLow(10);
+        var low30=LocalLow(30);
+
+        if(low10<=0 || low30<=0)
+            return false;
+
+        return low10>low30*1.015;
+    };
+
+
+    // ============================================================
+    // PRICE ABOVE RECENT AVERAGE
+    // ============================================================
+
+    var RisingStructure=function()
+    {
+        if(typeof [ih][0]=="undefined" ||
+           typeof [ih][4]=="undefined" ||
+           typeof [ih][9]=="undefined")
+            return false;
+
+        return
+        [ih][0].PClosing>=[ih][4].PClosing &&
+        [ih][4].PClosing>=[ih][9].PClosing;
+    };
+
+
+    // ============================================================
+    // COMPRESSION
+    // ============================================================
+
+    var Compression=function()
+    {
+        var avg30=AvgRange(30);
+
+        if(avg30<=0)
+            return 0;
+
+        var c=0;
+
+        for(var i=0;i<15;i++)
+        {
+            if(typeof [ih][i]!="undefined" &&
+               [ih][i].PriceYesterday>0)
+            {
+                var r=
+                ([ih][i].PriceMax-[ih][i].PriceMin)
+                /[ih][i].PriceYesterday;
+
+                if(r<=avg30*0.75)
+                    c++;
+            }
+        }
+
+        return c;
+    };
+
+
+    // ============================================================
+    // VOLUME EXPANSION DAYS
+    // ============================================================
+
+    var VolumeExpansionDays=function()
+    {
+        var av30=AvgVolume(30);
+
+        if(av30<=0)
+            return 0;
+
+        var c=0;
+
+        for(var i=0;i<10;i++)
+        {
+            if(typeof [ih][i]!="undefined" &&
+               [ih][i].QTotTran5J>=av30*1.30)
+            {
+                c++;
+            }
+        }
+
+        return c;
+    };
+
+
+    // ============================================================
+    // VOLUME EXPANSION ON UP DAYS
+    // ============================================================
+
+    var UpVolumeExpansion=function()
+    {
+        var av30=AvgVolume(30);
+
+        if(av30<=0)
+            return 0;
+
+        var c=0;
+
+        for(var i=0;i<15;i++)
+        {
+            if(typeof [ih][i]!="undefined" &&
+               [ih][i].PClosing>[ih][i].PriceYesterday &&
+               [ih][i].QTotTran5J>=av30*1.25)
+            {
+                c++;
+            }
+        }
+
+        return c;
+    };
+
+
+    // ============================================================
+    // LOW VOLUME DURING PULLBACK
+    //
+    // کاهش حجم هنگام عقب نشینی نسبت به حجم روزهای صعودی
+    // ============================================================
+
+    var PullbackVolumeQuality=function()
+    {
+        var upVol=0;
+        var downVol=0;
+
+        for(var i=0;i<15;i++)
+        {
+            if(typeof [ih][i]!="undefined")
+            {
+                if([ih][i].PClosing>[ih][i].PriceYesterday)
+                    upVol += [ih][i].QTotTran5J;
+
+                if([ih][i].PClosing<[ih][i].PriceYesterday)
+                    downVol += [ih][i].QTotTran5J;
+            }
+        }
+
+        if(downVol<=0)
+            return 2;
+
+        if(upVol>=downVol*1.20)
+            return 2;
+
+        if(upVol>=downVol)
+            return 1;
+
+        return 0;
+    };
+
+
+    // ============================================================
+    // RSI
+    //
+    // RSI14 با استفاده از سابقه [ih]
+    // ============================================================
+
+    var RSI14=function()
+    {
+        var gain=0;
+        var loss=0;
+        var count=0;
+
+        for(var i=0;i<14;i++)
+        {
+            if(typeof [ih][i]!="undefined" &&
+               typeof [ih][i+1]!="undefined")
+            {
+                var d=
+                [ih][i].PClosing-[ih][i+1].PClosing;
+
+                if(d>0)
+                    gain+=d;
+                else
+                    loss+=Math.abs(d);
+
+                count++;
+            }
+        }
+
+        if(count<10)
+            return 50;
+
+        var avgGain=gain/count;
+        var avgLoss=loss/count;
+
+        if(avgLoss==0)
+            return 100;
+
+        var rs=avgGain/avgLoss;
+
+        return 100-(100/(1+rs));
+    };
+
+
+    // ============================================================
+    // RSI OF EARLIER PERIOD
+    //
+    // برای تشخیص تغییر مومنتوم
+    // ============================================================
+
+    var EarlierRSI=function()
+    {
+        var gain=0;
+        var loss=0;
+        var count=0;
+
+        for(var i=14;i<28;i++)
+        {
+            if(typeof [ih][i]!="undefined" &&
+               typeof [ih][i+1]!="undefined")
+            {
+                var d=
+                [ih][i].PClosing-[ih][i+1].PClosing;
+
+                if(d>0)
+                    gain+=d;
+                else
+                    loss+=Math.abs(d);
+
+                count++;
+            }
+        }
+
+        if(count<10)
+            return 50;
+
+        var avgGain=gain/count;
+        var avgLoss=loss/count;
+
+        if(avgLoss==0)
+            return 100;
+
+        var rs=avgGain/avgLoss;
+
+        return 100-(100/(1+rs));
+    };
+
+
+    // ============================================================
+    // POSITIVE MOMENTUM DIVERGENCE
+    //
+    // قیمت اخیر در نزدیکی کف پایین تر/مشابه باشد ولی RSI
+    // نسبت به دوره قبلی بالاتر باشد.
+    // ============================================================
+
+    var PositiveDivergence=function()
+    {
+        var recentLow=LocalLow(14);
+        var oldLow=999999999999;
+
+        for(var i=14;i<30;i++)
+        {
+            if(typeof [ih][i]!="undefined" &&
+               [ih][i].PriceMin>0 &&
+               [ih][i].PriceMin<oldLow)
+            {
+                oldLow=[ih][i].PriceMin;
+            }
+        }
+
+        var r1=RSI14();
+        var r2=EarlierRSI();
+
+        if(recentLow<=oldLow*1.015 && r1>r2+3)
+            return true;
+
+        return false;
+    };
+
+
+    // ============================================================
+    // RESISTANCE
+    //
+    // مهم ترین سقف 60 روزه
+    // ============================================================
+
+    var resistance60=MaxPrice(60);
+
+    var resistance30=MaxPrice(30);
+    var resistance20=MaxPrice(20);
+
+
+    if(resistance60<=0 ||
+       resistance30<=0 ||
+       resistance20<=0)
+        return false;
+
+
+    // ============================================================
+    // DISTANCE TO RESISTANCE
+    // ============================================================
+
+    var dist60=
+    ((resistance60-pc)/pc)*100;
+
+    var dist30=
+    ((resistance30-pc)/pc)*100;
+
+    var dist20=
+    ((resistance20-pc)/pc)*100;
+
+
+    // ============================================================
+    // PRICE POSITION IN 60-DAY RANGE
+    // ============================================================
+
+    var min60=MinPrice(60);
+
+    if(min60<=0 ||
+       resistance60<=min60)
+        return false;
+
+    var position60=
+    ((pc-min60)/(resistance60-min60))*100;
+
+
+    // ============================================================
+    // LIQUIDITY GATE
+    // ============================================================
+
+    if([is1]<=0 || [is2]<=0)
+        return false;
+
+    if([is24]>8)
+        return false;
+
+    if([is25]>30)
+        return false;
+
+    if([is40]<70)
+        return false;
+
+    if([is41]<60)
+        return false;
+
+    if(tval<[is1]*0.35)
+        return false;
+
+    if(tno<[is9]*0.25)
+        return false;
+
+
+    // ============================================================
+    // FUNDAMENTAL SANITY
+    // ============================================================
+
+    if(eps<=0)
+        return false;
+
+    if(pe<=0)
+        return false;
+
+    if(pe>25)
+        return false;
+
+
+    // ============================================================
+    // CURRENT REAL BUYER
+    // ============================================================
+
+    if((ct).Buy_CountI<=0 ||
+       (ct).Sell_CountI<=0)
+        return false;
+
+
+    var buyPer=
+    (ct).Buy_I_Volume/(ct).Buy_CountI;
+
+    var sellPer=
+    (ct).Sell_I_Volume/(ct).Sell_CountI;
+
+
+    if(sellPer<=0)
+        return false;
+
+
+    var buyerPower=
+    buyPer/sellPer;
+
+
+    var realNet=
+    (ct).Buy_I_Volume-(ct).Sell_I_Volume;
+
+
+    // حداقل قدرت خریدار
+    if(buyerPower<1.15)
+        return false;
+
+    if(realNet<=0)
+        return false;
+
+
+    // ============================================================
+    // NO LOCKED BUY
+    // ============================================================
+
+    if(tmax>0 && pc>=tmax*0.995)
+        return false;
+
+
+    // ============================================================
+    // CURRENT VOLUME
+    // ============================================================
+
+    var av20=AvgVolume(20);
+    var av30=AvgVolume(30);
+
+    if(av20<=0 || av30<=0)
+        return false;
+
+
+    // حجم نباید کاملاً خشک باشد
+    if(tvol<av20*0.50)
+        return false;
+
+
+    // ============================================================
+    // PRE-BREAKOUT POSITION
+    //
+    // باید به مقاومت نزدیک باشیم اما هنوز کاملاً شکسته نشده باشیم.
+    // ============================================================
+
+    if(dist60<1.0)
+        return false;
+
+    if(dist60>12)
+        return false;
+
+
+    // برای مقاومت 30 روزه نیز باید فاصله زیاد نباشد
+    if(dist30>10)
+        return false;
+
+
+    // سهم نباید کاملاً در پایین محدوده باشد.
+    // فیلتر 2 برای آن طراحی شده بود.
+    if(position60<45)
+        return false;
+
+
+    // ============================================================
+    // STRUCTURE
+    // ============================================================
+
+    var supportTouches=SupportTouches();
+
+    if(supportTouches<2)
+        return false;
+
+
+    var higherLow=HigherLow();
+
+    var rising=RisingStructure();
+
+
+    // ============================================================
+    // COMPRESSION
+    // ============================================================
+
+    var compression=Compression();
+
+
+    if(compression<3)
+        return false;
+
+
+    // ============================================================
+    // VOLUME
+    // ============================================================
+
+    var expansionDays=VolumeExpansionDays();
+
+    var upExpansion=UpVolumeExpansion();
+
+    var pullbackQuality=PullbackVolumeQuality();
+
+
+    if(expansionDays<2)
+        return false;
+
+
+    if(upExpansion<1)
+        return false;
+
+
+    // ============================================================
+    // RSI
+    // ============================================================
+
+    var rsi=RSI14();
+
+    var oldRsi=EarlierRSI();
+
+    var divergence=PositiveDivergence();
+
+
+    // RSI خیلی داغ = ریسک تعقیب قیمت
+    if(rsi>78)
+        return false;
+
+
+    // ============================================================
+    // SCORE
+    // ============================================================
+
+    var score=0;
+
+
+    // ------------------------------------------------------------
+    // 1. نزدیکی به مقاومت 60 روزه
+    // حداکثر 15
+    // ------------------------------------------------------------
+
+    if(dist60>=1 && dist60<=3)
+        score+=15;
+    else if(dist60<=5)
+        score+=13;
+    else if(dist60<=7)
+        score+=10;
+    else if(dist60<=10)
+        score+=6;
+
+
+    // ------------------------------------------------------------
+    // 2. نزدیکی به مقاومت 30 روزه
+    // حداکثر 8
+    // ------------------------------------------------------------
+
+    if(dist30<=3)
+        score+=8;
+    else if(dist30<=5)
+        score+=6;
+    else if(dist30<=8)
+        score+=4;
+    else
+        score+=2;
+
+
+    // ------------------------------------------------------------
+    // 3. فشردگی
+    // حداکثر 12
+    // ------------------------------------------------------------
+
+    if(compression>=8)
+        score+=12;
+    else if(compression>=6)
+        score+=10;
+    else if(compression>=4)
+        score+=7;
+    else if(compression>=3)
+        score+=4;
+
+
+    // ------------------------------------------------------------
+    // 4. Volume Expansion
+    // حداکثر 12
+    // ------------------------------------------------------------
+
+    if(expansionDays>=5)
+        score+=12;
+    else if(expansionDays>=4)
+        score+=10;
+    else if(expansionDays>=3)
+        score+=8;
+    else if(expansionDays>=2)
+        score+=5;
+
+
+    // ------------------------------------------------------------
+    // 5. حجم سنگین در روزهای مثبت
+    // حداکثر 10
+    // ------------------------------------------------------------
+
+    if(upExpansion>=4)
+        score+=10;
+    else if(upExpansion>=3)
+        score+=8;
+    else if(upExpansion>=2)
+        score+=6;
+    else if(upExpansion>=1)
+        score+=4;
+
+
+    // ------------------------------------------------------------
+    // 6. کیفیت Pullback
+    // حداکثر 6
+    // ------------------------------------------------------------
+
+    if(pullbackQuality==2)
+        score+=6;
+    else if(pullbackQuality==1)
+        score+=3;
+
+
+    // ------------------------------------------------------------
+    // 7. Higher Low
+    // حداکثر 8
+    // ------------------------------------------------------------
+
+    if(higherLow)
+        score+=8;
+
+
+    // ------------------------------------------------------------
+    // 8. Rising Price Structure
+    // حداکثر 7
+    // ------------------------------------------------------------
+
+    if(rising)
+        score+=7;
+
+
+    // ------------------------------------------------------------
+    // 9. Buyer Power
+    // حداکثر 10
+    // ------------------------------------------------------------
+
+    if(buyerPower>=2.00)
+        score+=10;
+    else if(buyerPower>=1.70)
+        score+=9;
+    else if(buyerPower>=1.50)
+        score+=8;
+    else if(buyerPower>=1.30)
+        score+=6;
+    else if(buyerPower>=1.15)
+        score+=3;
+
+
+    // ------------------------------------------------------------
+    // 10. RSI / Momentum
+    // حداکثر 7
+    // ------------------------------------------------------------
+
+    if(rsi>=50 && rsi<=65)
+        score+=7;
+    else if(rsi>65 && rsi<=72)
+        score+=5;
+    else if(rsi>=45)
+        score+=3;
+
+
+    // ------------------------------------------------------------
+    // 11. Positive Divergence
+    // حداکثر 5
+    // ------------------------------------------------------------
+
+    if(divergence)
+        score+=5;
+
+
+    // ------------------------------------------------------------
+    // 12. Support history
+    // حداکثر 5
+    // ------------------------------------------------------------
+
+    if(supportTouches>=5)
+        score+=5;
+    else if(supportTouches>=4)
+        score+=4;
+    else if(supportTouches>=3)
+        score+=3;
+    else if(supportTouches>=2)
+        score+=2;
+
+
+    // ------------------------------------------------------------
+    // 13. Positive 3-month structure
+    // حداکثر 5
+    // ------------------------------------------------------------
+
+    if([is28]>=55)
+        score+=5;
+    else if([is28]>=50)
+        score+=4;
+    else if([is28]>=45)
+        score+=2;
+
+
+    // ------------------------------------------------------------
+    // 14. Liquidity
+    // حداکثر 5
+    // ------------------------------------------------------------
+
+    if([is1]>0 && tval>=[is1]*1.0)
+        score+=5;
+    else if([is1]>0 && tval>=[is1]*0.70)
+        score+=4;
+    else if([is1]>0 && tval>=[is1]*0.50)
+        score+=2;
+
+
+    // ============================================================
+    // NEGATIVE ADJUSTMENTS
+    // ============================================================
+
+    // اگر قیمت تقریباً مقاومت را لمس کرده ولی حجم تایید نمی کند
+    if(dist60<2 && tvol<av20*0.90)
+        score-=6;
+
+
+    // اگر قدرت خریدار فقط کمی مثبت است
+    if(buyerPower<1.30)
+        score-=3;
+
+
+    // اگر RSI خیلی بالا رفته باشد
+    if(rsi>72)
+        score-=4;
+
+
+    // اگر سهم از کف خیلی سریع بالا آمده باشد
+    if(position60>90)
+        score-=5;
+
+
+    // ============================================================
+    // FINAL PRE-BREAKOUT GATE
+    // ============================================================
+
+    if(score>=78)
+        return true;
+
+    return false;
+
+}()

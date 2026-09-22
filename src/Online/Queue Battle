@@ -1,0 +1,705 @@
+
+true==function()
+{
+    /*
+    ================================================================
+    QBR - QUEUE BATTLE & RECLAIM
+    FILTER 09
+
+    هدف:
+    شناسایی سهم‌هایی که در نزدیکی سقف مجاز روز قرار گرفته‌اند
+    و نشانه‌های قوی از نبرد عرضه و تقاضا، جذب عرضه و بازپس‌گیری
+    سقف دارند.
+
+    نکته مهم:
+    این فیلتر تعداد واقعی دفعات باز و بسته شدن صف خرید در همان
+    روز را نمی‌تواند مستقیماً ببیند؛ بنابراین از Proxy های
+    قابل استخراج از فیلترنویس استفاده می‌کند.
+
+    ================================================================
+    */
+
+
+    // ---------------------------------------------------------------
+    // 1. DATA VALIDATION
+    // ---------------------------------------------------------------
+
+    if(typeof [ih]=="undefined")
+        return false;
+
+    if([ih].length<15)
+        return false;
+
+    if(tmin<=0 || tmax<=0 || tmax<=tmin)
+        return false;
+
+    if(pl<=0 || pc<=0 || py<=0)
+        return false;
+
+    if(tno<=0 || tvol<=0 || tval<=0)
+        return false;
+
+
+    // ---------------------------------------------------------------
+    // 2. LIQUIDITY / TRADABILITY
+    // ---------------------------------------------------------------
+
+    if([is1]<=0 || [is5]<=0 || [is9]<=0)
+        return false;
+
+    /*
+       سهم‌هایی که سابقه باز بودن و معامله مناسب ندارند
+       حذف می‌شوند.
+    */
+
+    if([is40]<75)
+        return false;
+
+    if([is32]<70)
+        return false;
+
+
+    // ---------------------------------------------------------------
+    // 3. DYNAMIC POSITION INSIDE DAILY PRICE BAND
+    // ---------------------------------------------------------------
+
+    var band=tmax-tmin;
+
+    if(band<=0)
+        return false;
+
+    var position=
+        (pl-tmin)/band;
+
+
+    /*
+       هدف اصلی نزدیک سقف است اما نه الزاماً قفل کامل در سقف.
+
+       0.72 تا 1.00:
+       ناحیه جنگ شدید با سقف
+    */
+
+    if(position<0.72)
+        return false;
+
+
+    // ---------------------------------------------------------------
+    // 4. DISTANCE TO UPPER LIMIT
+    // ---------------------------------------------------------------
+
+    var roomToTop=
+        (tmax-pl)/band;
+
+    if(roomToTop<0)
+        return false;
+
+
+    /*
+       اگر دقیقاً مدت زیادی در سقف قفل باشد،
+       عملاً فرصت ورود مناسب کاهش پیدا می‌کند.
+
+       بنابراین کمی فضا لازم داریم.
+    */
+
+    if(roomToTop<0.005)
+    {
+        /*
+           فقط در صورت وجود تقاضای بسیار قوی اجازه عبور
+           داده می‌شود.
+        */
+    }
+
+
+    // ---------------------------------------------------------------
+    // 5. REAL BUYER DATA
+    // ---------------------------------------------------------------
+
+    var buyI=(ct).Buy_I_Volume;
+    var sellI=(ct).Sell_I_Volume;
+
+    var buyC=(ct).Buy_CountI;
+    var sellC=(ct).Sell_CountI;
+
+
+    if(buyI<=0 || sellI<=0 ||
+       buyC<=0 || sellC<=0)
+        return false;
+
+
+    var buyPer=
+        buyI/buyC;
+
+    var sellPer=
+        sellI/sellC;
+
+
+    if(sellPer<=0)
+        return false;
+
+
+    var buyerPower=
+        buyPer/sellPer;
+
+
+    // ---------------------------------------------------------------
+    // 6. BUYER POWER
+    // ---------------------------------------------------------------
+
+    if(buyerPower<1.80)
+        return false;
+
+
+    // ---------------------------------------------------------------
+    // 7. REAL MONEY FLOW
+    // ---------------------------------------------------------------
+
+    var netReal=
+        buyI-sellI;
+
+    var realBalance=
+        netReal/buyI;
+
+
+    if(realBalance<0.08)
+        return false;
+
+
+    // ---------------------------------------------------------------
+    // 8. ORDER BOOK
+    // ---------------------------------------------------------------
+
+    var bid1=qd1;
+    var bid2=qd2;
+    var bid3=qd3;
+
+    var ask1=qo1;
+    var ask2=qo2;
+    var ask3=qo3;
+
+
+    var bidTop3=
+        bid1+bid2+bid3;
+
+    var askTop3=
+        ask1+ask2+ask3;
+
+
+    if(bidTop3<=0 || askTop3<=0)
+        return false;
+
+
+    var bookRatio=
+        bidTop3/askTop3;
+
+
+    // ---------------------------------------------------------------
+    // 9. DEMAND MUST BE PRESENT
+    // ---------------------------------------------------------------
+
+    if(bookRatio<0.60)
+        return false;
+
+
+    // ---------------------------------------------------------------
+    // 10. FIRST LEVEL DEFENSE
+    // ---------------------------------------------------------------
+
+    var firstDefense=0;
+
+    if(ask1>0)
+        firstDefense=
+            bid1/ask1;
+
+
+    if(firstDefense<0.50)
+        return false;
+
+
+    // ---------------------------------------------------------------
+    // 11. PRICE MUST BE STRONG RELATIVE TO CLOSE
+    // ---------------------------------------------------------------
+
+    if(pl<pc)
+        return false;
+
+
+    // ---------------------------------------------------------------
+    // 12. CURRENT PRICE MUST BE ABOVE FIRST PRICE
+    // ---------------------------------------------------------------
+
+    if(pl<pf)
+        return false;
+
+
+    // ---------------------------------------------------------------
+    // 13. INTRADAY RECOVERY / RECLAIM
+    // ---------------------------------------------------------------
+
+    var dayPosition=0;
+
+    if(pmax>pmin)
+        dayPosition=
+            (pl-pmin)/(pmax-pmin);
+
+
+    /*
+       آخرین قیمت باید در بخش بالایی دامنه امروز باشد.
+    */
+
+    if(dayPosition<0.70)
+        return false;
+
+
+    // ---------------------------------------------------------------
+    // 14. CURRENT PRICE SHOULD NOT BE COMPLETELY EXHAUSTED
+    // ---------------------------------------------------------------
+
+    /*
+       اگر تقریباً تمام حرکت انجام شده باشد، امتیاز ریسک بالا می‌رود.
+    */
+
+    var exhaustionPenalty=0;
+
+    if(position>=0.98)
+        exhaustionPenalty+=12;
+
+    if(dayPosition>=0.97)
+        exhaustionPenalty+=8;
+
+
+    // ---------------------------------------------------------------
+    // 15. HISTORICAL 4-DAY TREND
+    // ---------------------------------------------------------------
+
+    var trend4=0;
+    var valid4=0;
+
+    for(var i=0;i<4;i++)
+    {
+        if(typeof [ih][i]!="undefined")
+        {
+            var d=[ih][i];
+
+            if(d.PClosing>0 &&
+               d.PriceYesterday>0)
+            {
+                valid4++;
+
+                if(d.PClosing>d.PriceYesterday)
+                    trend4++;
+            }
+        }
+    }
+
+
+    if(valid4<4)
+        return false;
+
+
+    /*
+       حداقل 3 روز از 4 روز اخیر مثبت باشد.
+       این شرط عمداً سخت اما نه مطلق است.
+    */
+
+    if(trend4<3)
+        return false;
+
+
+    // ---------------------------------------------------------------
+    // 16. FOUR-DAY PRICE STRUCTURE
+    // ---------------------------------------------------------------
+
+    var higherClose=0;
+
+    for(var j=0;j<3;j++)
+    {
+        if(typeof [ih][j]!="undefined" &&
+           typeof [ih][j+1]!="undefined")
+        {
+            if([ih][j].PClosing>[ih][j+1].PClosing)
+                higherClose++;
+        }
+    }
+
+
+    if(higherClose<2)
+        return false;
+
+
+    // ---------------------------------------------------------------
+    // 17. RECENT DAILY CLOSING STRENGTH
+    // ---------------------------------------------------------------
+
+    var strongClose=0;
+    var validClose=0;
+
+    for(var k=0;k<7;k++)
+    {
+        if(typeof [ih][k]!="undefined")
+        {
+            var x=[ih][k];
+
+            if(x.PriceMax>0 &&
+               x.PriceMin>0 &&
+               x.PDrCotVal>0 &&
+               x.PriceMax>x.PriceMin)
+            {
+                validClose++;
+
+                var cp=
+                    (x.PDrCotVal-x.PriceMin)/
+                    (x.PriceMax-x.PriceMin);
+
+                if(cp>=0.60)
+                    strongClose++;
+            }
+        }
+    }
+
+
+    if(validClose<5)
+        return false;
+
+    if(strongClose<4)
+        return false;
+
+
+    // ---------------------------------------------------------------
+    // 18. VOLUME PARTICIPATION
+    // ---------------------------------------------------------------
+
+    var avgVol=0;
+    var avgTrades=0;
+    var validDays=0;
+
+
+    for(var n=0;n<15;n++)
+    {
+        if(typeof [ih][n]!="undefined")
+        {
+            if([ih][n].QTotTran5J>0 &&
+               [ih][n].ZTotTran>0)
+            {
+                avgVol += [ih][n].QTotTran5J;
+                avgTrades += [ih][n].ZTotTran;
+                validDays++;
+            }
+        }
+    }
+
+
+    if(validDays<12)
+        return false;
+
+
+    avgVol=avgVol/validDays;
+    avgTrades=avgTrades/validDays;
+
+
+    if(avgVol<=0 || avgTrades<=0)
+        return false;
+
+
+    var volumeRatio=
+        tvol/avgVol;
+
+    var tradeRatio=
+        tno/avgTrades;
+
+
+    if(volumeRatio<0.60)
+        return false;
+
+    if(tradeRatio<0.60)
+        return false;
+
+
+    // ---------------------------------------------------------------
+    // 19. NO EXTREME LIQUIDITY COLLAPSE
+    // ---------------------------------------------------------------
+
+    if(tvol<bvol*0.15)
+        return false;
+
+
+    // ---------------------------------------------------------------
+    // 20. RECENT BAD-DAY PROTECTION
+    // ---------------------------------------------------------------
+
+    var severeDown=0;
+
+    for(var m=0;m<7;m++)
+    {
+        if(typeof [ih][m]!="undefined")
+        {
+            if([ih][m].PClosing<
+               [ih][m].PriceYesterday*0.97)
+            {
+                severeDown++;
+            }
+        }
+    }
+
+
+    if(severeDown>=3)
+        return false;
+
+
+    // ---------------------------------------------------------------
+    // 21. FUNDAMENTAL QUALITY AS SOFT CONFIRMATION
+    // ---------------------------------------------------------------
+
+    var fundamentalScore=0;
+
+
+    if(typeof eps!="undefined" &&
+       eps>0)
+        fundamentalScore+=5;
+
+
+    if(typeof pe!="undefined" &&
+       pe>0)
+        fundamentalScore+=5;
+
+
+    /*
+       بنیاد در این فیلتر شرط اجباری نیست؛
+       چون هدف اصلی سیگنال آنلاین است.
+    */
+
+
+    // ---------------------------------------------------------------
+    // 22. QUEUE-BATTLE SCORE
+    // ---------------------------------------------------------------
+
+    var battleScore=0;
+
+
+    // نزدیک سقف
+    if(position>=0.90)
+        battleScore+=20;
+
+    else if(position>=0.82)
+        battleScore+=17;
+
+    else
+        battleScore+=12;
+
+
+    // تقاضای دفتر سفارش
+    if(bookRatio>=1.50)
+        battleScore+=20;
+
+    else if(bookRatio>=1.20)
+        battleScore+=17;
+
+    else if(bookRatio>=1.00)
+        battleScore+=14;
+
+    else if(bookRatio>=0.80)
+        battleScore+=11;
+
+    else
+        battleScore+=7;
+
+
+    // دفاع سطح اول
+    if(firstDefense>=2.00)
+        battleScore+=15;
+
+    else if(firstDefense>=1.50)
+        battleScore+=13;
+
+    else if(firstDefense>=1.00)
+        battleScore+=11;
+
+    else
+        battleScore+=7;
+
+
+    // قدرت خریدار
+    if(buyerPower>=4.00)
+        battleScore+=25;
+
+    else if(buyerPower>=3.00)
+        battleScore+=22;
+
+    else if(buyerPower>=2.50)
+        battleScore+=19;
+
+    else if(buyerPower>=2.00)
+        battleScore+=16;
+
+    else
+        battleScore+=10;
+
+
+    // جریان حقیقی
+    if(realBalance>=0.30)
+        battleScore+=20;
+
+    else if(realBalance>=0.20)
+        battleScore+=17;
+
+    else if(realBalance>=0.12)
+        battleScore+=14;
+
+    else if(realBalance>=0.08)
+        battleScore+=10;
+
+
+    // روند 4 روزه
+    if(trend4==4)
+        battleScore+=15;
+
+    else if(trend4==3)
+        battleScore+=11;
+
+
+    // بسته شدن های قوی
+    if(strongClose>=6)
+        battleScore+=15;
+
+    else if(strongClose>=5)
+        battleScore+=12;
+
+    else
+        battleScore+=8;
+
+
+    // مشارکت
+    if(volumeRatio>=2.00)
+        battleScore+=12;
+
+    else if(volumeRatio>=1.20)
+        battleScore+=9;
+
+    else
+        battleScore+=5;
+
+
+    // ---------------------------------------------------------------
+    // 23. ANTI-FAKE-QUEUE CONDITIONS
+    // ---------------------------------------------------------------
+
+    var fakeQueueRisk=0;
+
+
+    /*
+       حجم بسیار زیاد + قدرت خریدار ضعیف
+       می‌تواند نشانه توزیع باشد.
+    */
+
+    if(volumeRatio>=2.50 &&
+       buyerPower<2.00)
+        fakeQueueRisk+=20;
+
+
+    /*
+       نزدیک سقف ولی Bid بسیار ضعیف
+    */
+
+    if(position>=0.90 &&
+       bookRatio<0.70)
+        fakeQueueRisk+=15;
+
+
+    /*
+       قیمت قوی ولی پول حقیقی منفی
+    */
+
+    if(pl>=pc &&
+       realBalance<0)
+        fakeQueueRisk+=20;
+
+
+    /*
+       سابقه بسیار ضعیف + جهش ناگهانی
+    */
+
+    if(trend4<=1 &&
+       volumeRatio>=2.00)
+        fakeQueueRisk+=15;
+
+
+    // ---------------------------------------------------------------
+    // 24. CONTINUATION SCORE
+    // ---------------------------------------------------------------
+
+    var continuation=0;
+
+
+    if(trend4>=3)
+        continuation+=20;
+
+    if(higherClose>=2)
+        continuation+=15;
+
+    if(strongClose>=4)
+        continuation+=15;
+
+    if(buyerPower>=2.00)
+        continuation+=15;
+
+    if(realBalance>=0.08)
+        continuation+=15;
+
+    if(bookRatio>=0.80)
+        continuation+=10;
+
+    if(pl>=pc)
+        continuation+=5;
+
+    if(volumeRatio>=0.75)
+        continuation+=5;
+
+
+    // ---------------------------------------------------------------
+    // 25. FINAL SCORE
+    // ---------------------------------------------------------------
+
+    var finalScore=
+        battleScore
+        +continuation
+        +fundamentalScore
+        -fakeQueueRisk
+        -exhaustionPenalty;
+
+
+    // ---------------------------------------------------------------
+    // 26. HARD SAFETY GATES
+    // ---------------------------------------------------------------
+
+    if(buyerPower<1.80)
+        return false;
+
+    if(realBalance<0.08)
+        return false;
+
+    if(bookRatio<0.60)
+        return false;
+
+    if(dayPosition<0.70)
+        return false;
+
+    if(trend4<3)
+        return false;
+
+    if(strongClose<4)
+        return false;
+
+    if(fakeQueueRisk>=25)
+        return false;
+
+
+    // ---------------------------------------------------------------
+    // 27. FINAL QUALITY
+    // ---------------------------------------------------------------
+
+    if(finalScore<175)
+        return false;
+
+
+    return true;
+
+}()

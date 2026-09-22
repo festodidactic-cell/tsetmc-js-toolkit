@@ -1,0 +1,336 @@
+
+true==function()
+{
+    /*
+    ============================================================
+    DIVE-MC
+    Divergence Intelligence — MFI & CCI
+
+    هدف:
+    کشف واگرایی مثبت معمولی و مثبت مخفی
+    در MFI و CCI
+
+    کاربرد:
+    WATCHLIST ONLY
+
+    این فیلتر دستور خرید یا فروش نیست.
+    ============================================================
+    */
+
+    if(typeof [ih]=="undefined")
+        return false;
+
+    if([ih].length<35)
+        return false;
+
+
+    // ------------------------------------------------------------
+    // ساخت آرایه داده‌ها
+    // ------------------------------------------------------------
+
+    var len=Math.min([ih].length,60);
+
+    var P=[];
+    var H=[];
+    var L=[];
+    var V=[];
+    var TP=[];
+
+    for(var i=0;i<len;i++)
+    {
+        if(typeof [ih][i]=="undefined")
+            return false;
+
+        P[i]=[ih][i].PClosing;
+        H[i]=[ih][i].PriceMax;
+        L[i]=[ih][i].PriceMin;
+        V[i]=[ih][i].QTotTran5J;
+
+        if(H[i]<=0 || L[i]<=0 || P[i]<=0)
+            return false;
+
+        TP[i]=(H[i]+L[i]+P[i])/3;
+    }
+
+
+    // ------------------------------------------------------------
+    // EMA
+    // ------------------------------------------------------------
+
+    var EMA=function(arr,period)
+    {
+        var out=[];
+        var alpha=2/(period+1);
+
+        out[0]=arr[0];
+
+        for(var i=1;i<arr.length;i++)
+            out[i]=
+                alpha*arr[i]+
+                (1-alpha)*out[i-1];
+
+        return out;
+    };
+
+
+    // ------------------------------------------------------------
+    // MFI
+    // ------------------------------------------------------------
+
+    var MFI=[];
+
+    for(var i=0;i<len;i++)
+    {
+        var pos=0;
+        var neg=0;
+
+        var start=Math.max(0,i-13);
+
+        for(var j=start;j<=i;j++)
+        {
+            if(j==len-1)
+                continue;
+
+            /*
+               چون آرایه از امروز به گذشته است،
+               j+1 روز قدیمی‌تر است.
+            */
+
+            if(TP[j]>TP[j+1])
+                pos+=TP[j]*V[j];
+
+            if(TP[j]<TP[j+1])
+                neg+=TP[j]*V[j];
+        }
+
+        if(neg==0)
+            MFI[i]=100;
+        else
+        {
+            var mr=pos/neg;
+            MFI[i]=100-(100/(1+mr));
+        }
+    }
+
+
+    // ------------------------------------------------------------
+    // CCI
+    // ------------------------------------------------------------
+
+    var CCI=[];
+
+    for(var i=0;i<len;i++)
+    {
+        var start=Math.max(0,i-19);
+
+        var sum=0;
+        var count=0;
+
+        for(var j=start;j<=i;j++)
+        {
+            sum+=TP[j];
+            count++;
+        }
+
+        var sma=sum/count;
+
+        var dev=0;
+
+        for(var j=start;j<=i;j++)
+            dev+=Math.abs(TP[j]-sma);
+
+        dev=dev/count;
+
+        if(dev==0)
+            CCI[i]=0;
+        else
+            CCI[i]=(TP[i]-sma)/(0.015*dev);
+    }
+
+
+    // ------------------------------------------------------------
+    // Pivot Low
+    // ------------------------------------------------------------
+
+    var pivotLow=function(i)
+    {
+        if(i<3 || i>len-4)
+            return false;
+
+        return(
+            L[i]<=L[i-1] &&
+            L[i]<=L[i-2] &&
+            L[i]<=L[i+1] &&
+            L[i]<=L[i+2]
+        );
+    };
+
+
+    // ------------------------------------------------------------
+    // آخرین دو Pivot Low معتبر
+    // ------------------------------------------------------------
+
+    var recent=-1;
+    var old=-1;
+
+    for(var i=3;i<len-3;i++)
+    {
+        if(pivotLow(i))
+        {
+            if(recent==-1)
+                recent=i;
+            else
+            {
+                old=i;
+                break;
+            }
+        }
+    }
+
+    if(recent==-1 || old==-1)
+        return false;
+
+
+    // ------------------------------------------------------------
+    // فاصله دو Pivot
+    // ------------------------------------------------------------
+
+    var separation=old-recent;
+
+    if(separation<5)
+        return false;
+
+
+    // ------------------------------------------------------------
+    // واگرایی MFI
+    // ------------------------------------------------------------
+
+    var mfiRegular=false;
+    var mfiHidden=false;
+
+    if(
+        L[recent]<L[old] &&
+        MFI[recent]>MFI[old]
+    )
+        mfiRegular=true;
+
+
+    if(
+        L[recent]>L[old] &&
+        MFI[recent]<MFI[old]
+    )
+        mfiHidden=true;
+
+
+    // ------------------------------------------------------------
+    // واگرایی CCI
+    // ------------------------------------------------------------
+
+    var cciRegular=false;
+    var cciHidden=false;
+
+
+    if(
+        L[recent]<L[old] &&
+        CCI[recent]>CCI[old]
+    )
+        cciRegular=true;
+
+
+    if(
+        L[recent]>L[old] &&
+        CCI[recent]<CCI[old]
+    )
+        cciHidden=true;
+
+
+    // ------------------------------------------------------------
+    // قدرت واگرایی
+    // ------------------------------------------------------------
+
+    var mfiStrength=0;
+    var cciStrength=0;
+
+
+    if(mfiRegular)
+        mfiStrength=2;
+
+    if(mfiHidden)
+        mfiStrength=1;
+
+    if(cciRegular)
+        cciStrength=2;
+
+    if(cciHidden)
+        cciStrength=1;
+
+
+    // ------------------------------------------------------------
+    // تأیید برگشت فعلی
+    // ------------------------------------------------------------
+
+    var recovery=false;
+
+    if(
+        P[0]>P[1] ||
+        P[0]>P[2] ||
+        P[0]>P[3]
+    )
+        recovery=true;
+
+
+    // ------------------------------------------------------------
+    // جلوگیری از واگرایی‌های بسیار ضعیف
+    // ------------------------------------------------------------
+
+    var priceDistance=
+        Math.abs(L[recent]-L[old])/
+        L[old];
+
+    /*
+       اختلاف بسیار جزئی را حذف نمی‌کنیم،
+       چون هدف Watchlist است.
+       فقط اگر عملاً دو کف یکسان باشند،
+       سیگنال را بی‌ارزش فرض می‌کنیم.
+    */
+
+    if(priceDistance<0.005)
+    {
+        /*
+           اگر اندیکاتور اختلاف قابل توجهی دارد،
+           هنوز اجازه خروجی می‌دهیم.
+        */
+
+        if(
+            Math.abs(MFI[recent]-MFI[old])<4 &&
+            Math.abs(CCI[recent]-CCI[old])<20
+        )
+            return false;
+    }
+
+
+    // ------------------------------------------------------------
+    // نتیجه
+    // ------------------------------------------------------------
+
+    /*
+       حداقل یکی از دو اندیکاتور باید واگرایی معتبر بدهد.
+
+       MFI + CCI همزمان:
+       سیگنال قوی‌تر.
+
+       فقط یکی:
+       همچنان برای Watchlist معتبر.
+    */
+
+    if(
+        (mfiRegular || mfiHidden ||
+         cciRegular || cciHidden)
+    )
+        return true;
+
+
+    return false;
+
+}()
+

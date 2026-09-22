@@ -1,0 +1,723 @@
+
+true==function()
+{
+    // ============================================================
+    // LAP
+    // LONG ACCUMULATION PRESSURE
+    //
+    // Filter 12
+    //
+    // هدف:
+    // شناسایی سهامی که شواهد آماری از انباشت طولانی‌مدت دارند،
+    // بدون اینکه الزاماً هنوز روند صعودی آنها آغاز شده باشد.
+    //
+    // محورهای اصلی:
+    //
+    // 1) انباشت حقیقی در بازه 3 ماهه
+    // 2) انباشت حقیقی در بازه 12 ماهه
+    // 3) انباشت حقوقی در بازه 3 ماهه
+    // 4) انباشت حقوقی در بازه 12 ماهه
+    // 5) قدرت خرید هر خریدار نسبت به فروشنده
+    // 6) افزایش کیفیت خرید نسبت به سابقه 12 ماهه
+    // 7) عدم انفجار بیش از حد قیمت
+    // 8) نقدشوندگی و سابقه مناسب
+    // 9) حذف سهم‌های بسیار آسیب‌دیده
+    // 10) امتیازدهی نهایی انباشت
+    //
+    // نکته:
+    // این فیلتر "انباشت تاریخی" را به‌صورت آماری استنباط می‌کند.
+    // داده روزانه حقیقی/حقوقی برای تمام روزهای [ih] مستند نشده است.
+    // ============================================================
+
+
+    // ------------------------------------------------------------
+    // 1. DATA VALIDATION
+    // ------------------------------------------------------------
+
+    if(typeof [ih]=="undefined")
+        return false;
+
+    if([ih].length<30)
+        return false;
+
+    if(pl<=0 || pc<=0 || py<=0)
+        return false;
+
+    if(tvol<=0 || tno<=0 || tval<=0)
+        return false;
+
+
+    // ------------------------------------------------------------
+    // 2. LIQUIDITY / SURVIVABILITY
+    // ------------------------------------------------------------
+
+    /*
+       LAP قرار نیست سهم بی‌معامله یا قفل‌شونده پیدا کند.
+    */
+
+    if([is40]<70)
+        return false;
+
+    if([is1]<100000000)
+        return false;
+
+    if([is5]<=0 || [is6]<=0)
+        return false;
+
+    if([is9]<=0 || [is10]<=0)
+        return false;
+
+
+    // ------------------------------------------------------------
+    // 3. HISTORICAL REAL BUY / SELL
+    // ------------------------------------------------------------
+
+    var realBuy3=[is50];
+    var realBuy12=[is51];
+
+    var realSell3=[is70];
+    var realSell12=[is71];
+
+
+    if(realBuy3<=0 ||
+       realBuy12<=0 ||
+       realSell3<=0 ||
+       realSell12<=0)
+        return false;
+
+
+    // ------------------------------------------------------------
+    // 4. HISTORICAL LEGAL BUY / SELL
+    // ------------------------------------------------------------
+
+    var legalBuy3=[is54];
+    var legalBuy12=[is55];
+
+    var legalSell3=[is74];
+    var legalSell12=[is75];
+
+
+    if(legalBuy3<=0 ||
+       legalBuy12<=0 ||
+       legalSell3<=0 ||
+       legalSell12<=0)
+        return false;
+
+
+    // ------------------------------------------------------------
+    // 5. REAL ACCUMULATION BALANCE
+    // ------------------------------------------------------------
+
+    var realBalance3=
+        (realBuy3-realSell3)/
+        (realBuy3+realSell3);
+
+    var realBalance12=
+        (realBuy12-realSell12)/
+        (realBuy12+realSell12);
+
+
+    // ------------------------------------------------------------
+    // 6. LEGAL ACCUMULATION BALANCE
+    // ------------------------------------------------------------
+
+    var legalBalance3=
+        (legalBuy3-legalSell3)/
+        (legalBuy3+legalSell3);
+
+    var legalBalance12=
+        (legalBuy12-legalSell12)/
+        (legalBuy12+legalSell12);
+
+
+    // ------------------------------------------------------------
+    // 7. REAL BUY SHARE
+    // ------------------------------------------------------------
+
+    var realBuyShare3=
+        realBuy3/
+        (realBuy3+realSell3);
+
+    var realBuyShare12=
+        realBuy12/
+        (realBuy12+realSell12);
+
+
+    // ------------------------------------------------------------
+    // 8. LEGAL BUY SHARE
+    // ------------------------------------------------------------
+
+    var legalBuyShare3=
+        legalBuy3/
+        (legalBuy3+legalSell3);
+
+    var legalBuyShare12=
+        legalBuy12/
+        (legalBuy12+legalSell12);
+
+
+    // ------------------------------------------------------------
+    // 9. LARGE BUYER QUALITY
+    // ------------------------------------------------------------
+
+    var realBuyers3=[is58];
+    var realBuyers12=[is59];
+
+    var realSellers3=[is78];
+    var realSellers12=[is79];
+
+
+    var legalBuyers3=[is62];
+    var legalBuyers12=[is63];
+
+    var legalSellers3=[is82];
+    var legalSellers12=[is83];
+
+
+    if(realBuyers3<=0 ||
+       realBuyers12<=0 ||
+       realSellers3<=0 ||
+       realSellers12<=0)
+        return false;
+
+
+    if(legalBuyers3<=0 ||
+       legalBuyers12<=0 ||
+       legalSellers3<=0 ||
+       legalSellers12<=0)
+        return false;
+
+
+    // ------------------------------------------------------------
+    // 10. AVERAGE ORDER SIZE
+    // ------------------------------------------------------------
+
+    var avgRealBuy3=
+        realBuy3/realBuyers3;
+
+    var avgRealSell3=
+        realSell3/realSellers3;
+
+    var avgRealBuy12=
+        realBuy12/realBuyers12;
+
+    var avgRealSell12=
+        realSell12/realSellers12;
+
+
+    var avgLegalBuy3=
+        legalBuy3/legalBuyers3;
+
+    var avgLegalSell3=
+        legalSell3/legalSellers3;
+
+    var avgLegalBuy12=
+        legalBuy12/legalBuyers12;
+
+    var avgLegalSell12=
+        legalSell12/legalSellers12;
+
+
+    if(avgRealBuy3<=0 ||
+       avgRealSell3<=0 ||
+       avgRealBuy12<=0 ||
+       avgRealSell12<=0)
+        return false;
+
+
+    // ------------------------------------------------------------
+    // 11. BUYER POWER - HISTORICAL PROXY
+    // ------------------------------------------------------------
+
+    var realBuyerPower3=
+        avgRealBuy3/avgRealSell3;
+
+    var realBuyerPower12=
+        avgRealBuy12/avgRealSell12;
+
+
+    var legalBuyerPower3=
+        avgLegalBuy3/avgLegalSell3;
+
+    var legalBuyerPower12=
+        avgLegalBuy12/avgLegalSell12;
+
+
+    // ------------------------------------------------------------
+    // 12. ACCUMULATION PERSISTENCE
+    // ------------------------------------------------------------
+
+    /*
+       اگر هم 3 ماه و هم 12 ماه وضعیت خرید
+       از فروش بهتر باشد، شواهد بسیار قوی‌تر است.
+    */
+
+    var persistence=0;
+
+
+    if(realBalance12>0.03)
+        persistence+=15;
+
+    if(realBalance12>0.08)
+        persistence+=10;
+
+    if(realBalance3>0.03)
+        persistence+=15;
+
+    if(realBalance3>0.08)
+        persistence+=10;
+
+
+    if(legalBalance12>0.02)
+        persistence+=10;
+
+    if(legalBalance3>0.02)
+        persistence+=10;
+
+
+    // ------------------------------------------------------------
+    // 13. RECENT ACCUMULATION ACCELERATION
+    // ------------------------------------------------------------
+
+    /*
+       اگر 3 ماه اخیر بهتر از 12 ماه باشد،
+       فشار خرید در حال تشدید است.
+    */
+
+    var realAcceleration=
+        realBalance3-realBalance12;
+
+    var legalAcceleration=
+        legalBalance3-legalBalance12;
+
+
+    if(realAcceleration>0.03)
+        persistence+=10;
+
+    if(realAcceleration>0.08)
+        persistence+=10;
+
+    if(legalAcceleration>0.03)
+        persistence+=7;
+
+
+    // ------------------------------------------------------------
+    // 14. LARGE PLAYER SIGNATURE
+    // ------------------------------------------------------------
+
+    /*
+       فقط تعداد خریدار مهم نیست.
+       اگر حجم خرید نسبت به تعداد خریداران بالا باشد،
+       احتمال حضور خریداران درشت‌تر بیشتر است.
+
+       این یک "تشخیص بازیگر" قطعی نیست.
+       فقط Large Buyer Proxy است.
+    */
+
+    var largeBuyerScore=0;
+
+
+    if(realBuyerPower12>=1.50)
+        largeBuyerScore+=10;
+
+    if(realBuyerPower12>=2.00)
+        largeBuyerScore+=10;
+
+    if(realBuyerPower3>=1.50)
+        largeBuyerScore+=10;
+
+    if(legalBuyerPower12>=1.30)
+        largeBuyerScore+=7;
+
+    if(legalBuyerPower3>=1.30)
+        largeBuyerScore+=7;
+
+
+    // ------------------------------------------------------------
+    // 15. CURRENT DAY REAL BUYER CONFIRMATION
+    // ------------------------------------------------------------
+
+    var curBuyI=(ct).Buy_I_Volume;
+    var curSellI=(ct).Sell_I_Volume;
+
+    var curBuyC=(ct).Buy_CountI;
+    var curSellC=(ct).Sell_CountI;
+
+
+    if(curBuyI<=0 ||
+       curSellI<=0 ||
+       curBuyC<=0 ||
+       curSellC<=0)
+        return false;
+
+
+    var curAvgBuy=
+        curBuyI/curBuyC;
+
+    var curAvgSell=
+        curSellI/curSellC;
+
+
+    var currentBuyerPower=
+        curAvgBuy/curAvgSell;
+
+
+    var currentRealFlow=
+        (curBuyI-curSellI)/
+        (curBuyI+curSellI);
+
+
+    // ------------------------------------------------------------
+    // 16. CURRENT CONFIRMATION
+    // ------------------------------------------------------------
+
+    var currentConfirmation=0;
+
+
+    if(currentBuyerPower>=1.30)
+        currentConfirmation+=8;
+
+    if(currentBuyerPower>=1.70)
+        currentConfirmation+=10;
+
+    if(currentBuyerPower>=2.20)
+        currentConfirmation+=10;
+
+
+    if(currentRealFlow>=0.03)
+        currentConfirmation+=8;
+
+    if(currentRealFlow>=0.10)
+        currentConfirmation+=10;
+
+    if(currentRealFlow>=0.20)
+        currentConfirmation+=10;
+
+
+    // ------------------------------------------------------------
+    // 17. PRICE / ACCUMULATION DISCONNECT
+    // ------------------------------------------------------------
+
+    /*
+       این قسمت قلب LAP است.
+
+       دنبال سهمی هستیم که فشار خرید بالا باشد
+       ولی قیمت هنوز به اندازه آن فشار حرکت نکرده باشد.
+
+       این همان الگویی است که در مثال مورد نظر تو اهمیت دارد.
+    */
+
+
+    var priceChange60=0;
+
+    var refIndex=
+        [ih].length-1;
+
+    if(refIndex>59)
+        refIndex=59;
+
+
+    if(typeof [ih][refIndex]!="undefined" &&
+       [ih][refIndex].PClosing>0)
+    {
+        priceChange60=
+            pc/[ih][refIndex].PClosing-1;
+    }
+
+
+    /*
+       اگر قیمت طی سابقه موجود تقریباً ثابت/ضعیف باشد
+       ولی accumulation score بالا باشد،
+       امتیاز بیشتری می‌گیرد.
+    */
+
+    var disconnect=0;
+
+
+    if(priceChange60<0.10)
+        disconnect+=15;
+
+    if(priceChange60<0.05)
+        disconnect+=10;
+
+    if(priceChange60<0)
+        disconnect+=10;
+
+
+    // ------------------------------------------------------------
+    // 18. PRICE MUST NOT BE IN FREE FALL
+    // ------------------------------------------------------------
+
+    /*
+       انباشت با سقوط آزاد را اشتباه نگیریم.
+    */
+
+    var negativeDays12=[is19];
+
+    if([is21]>70)
+        return false;
+
+
+    if(negativeDays12>0 &&
+       priceChange60<-0.25)
+    {
+        return false;
+    }
+
+
+    // ------------------------------------------------------------
+    // 19. RECENT PRICE STABILITY
+    // ------------------------------------------------------------
+
+    var severeDrops=0;
+
+
+    for(var i=0;i<20;i++)
+    {
+        if(typeof [ih][i]!="undefined")
+        {
+            if([ih][i].PClosing>0 &&
+               [ih][i].PriceYesterday>0)
+            {
+                var ret=
+                    [ih][i].PClosing/
+                    [ih][i].PriceYesterday;
+
+                if(ret<0.94)
+                    severeDrops++;
+            }
+        }
+    }
+
+
+    if(severeDrops>=5)
+        return false;
+
+
+    // ------------------------------------------------------------
+    // 20. VOLUME STRUCTURE
+    // ------------------------------------------------------------
+
+    /*
+       نباید صرفاً با یک انفجار حجمی روز جاری فریب بخوریم.
+    */
+
+    if([is5]<=0 || [is6]<=0)
+        return false;
+
+
+    var volumeRegime=
+        [is5]/[is6];
+
+
+    /*
+       3 ماه اخیر نباید کاملاً مرده نسبت به 12 ماه باشد.
+    */
+
+    if(volumeRegime<0.35)
+        return false;
+
+
+    // ------------------------------------------------------------
+    // 21. CURRENT MARKET LIQUIDITY
+    // ------------------------------------------------------------
+
+    if(tval<[is1]*0.15)
+        return false;
+
+
+    // ------------------------------------------------------------
+    // 22. ACCUMULATION SCORE
+    // ------------------------------------------------------------
+
+    var score=0;
+
+
+    // Real accumulation
+    if(realBalance12>=0.10)
+        score+=20;
+    else if(realBalance12>=0.05)
+        score+=15;
+    else if(realBalance12>=0.03)
+        score+=10;
+
+
+    if(realBalance3>=0.10)
+        score+=20;
+    else if(realBalance3>=0.05)
+        score+=15;
+    else if(realBalance3>=0.03)
+        score+=10;
+
+
+    // Legal accumulation
+    if(legalBalance12>=0.08)
+        score+=15;
+    else if(legalBalance12>=0.03)
+        score+=10;
+
+
+    if(legalBalance3>=0.08)
+        score+=15;
+    else if(legalBalance3>=0.03)
+        score+=10;
+
+
+    // Buyer power
+    if(realBuyerPower12>=2.00)
+        score+=20;
+    else if(realBuyerPower12>=1.50)
+        score+=15;
+    else if(realBuyerPower12>=1.20)
+        score+=8;
+
+
+    if(realBuyerPower3>=2.00)
+        score+=20;
+    else if(realBuyerPower3>=1.50)
+        score+=15;
+    else if(realBuyerPower3>=1.20)
+        score+=8;
+
+
+    // Acceleration
+    if(realAcceleration>=0.10)
+        score+=20;
+    else if(realAcceleration>=0.05)
+        score+=12;
+    else if(realAcceleration>=0.02)
+        score+=7;
+
+
+    if(legalAcceleration>=0.05)
+        score+=10;
+
+
+    // Large player proxy
+    score+=largeBuyerScore;
+
+
+    // Current confirmation
+    score+=currentConfirmation;
+
+
+    // Price / accumulation disconnect
+    score+=disconnect;
+
+
+    // ------------------------------------------------------------
+    // 23. ANTI-ALGORITHMIC / ANTI-FALSE-ACCUMULATION
+    // ------------------------------------------------------------
+
+    /*
+       الگوریتم‌ها می‌توانند:
+       - معاملات خرد متعدد ایجاد کنند
+       - قدرت خریدار ظاهری بسازند
+       - حجم بالا تولید کنند
+       - قیمت را در محدوده نگه دارند.
+
+       بنابراین یک نشانه به تنهایی کافی نیست.
+    */
+
+    var antiAlgo=0;
+
+
+    /*
+       اگر تعداد خریداران حقیقی زیاد ولی
+       قدرت خرید آنها ضعیف باشد، امتیاز نمی‌گیرد.
+    */
+
+    if(realBuyers3>realSellers3*1.80 &&
+       realBuyerPower3<1.20)
+    {
+        antiAlgo-=15;
+    }
+
+
+    /*
+       اگر حجم خرید زیاد باشد اما خریداران
+       بیش از حد خرد باشند، جریمه.
+    */
+
+    if(realBuyers12>realSellers12*2.00 &&
+       realBuyerPower12<1.20)
+    {
+        antiAlgo-=15;
+    }
+
+
+    /*
+       اگر خرید حقوقی و حقیقی هر دو ظاهراً مثبت باشند
+       ولی قدرت خرید هر دو پایین باشد، آن را
+       به عنوان accumulation قوی قبول نمی‌کنیم.
+    */
+
+    if(realBalance12>0.08 &&
+       realBuyerPower12<1.10 &&
+       legalBalance12>0.05 &&
+       legalBuyerPower12<1.10)
+    {
+        antiAlgo-=20;
+    }
+
+
+    score+=antiAlgo;
+
+
+    // ------------------------------------------------------------
+    // 24. STRONG ACCUMULATION GATE
+    // ------------------------------------------------------------
+
+    /*
+       حداقل باید یکی از این دو اتفاق وجود داشته باشد:
+
+       A) انباشت حقیقی بسیار قوی
+       B) انباشت حقیقی + حقوقی همزمان
+    */
+
+    var strongReal=
+        realBalance12>=0.05 &&
+        realBalance3>=0.05 &&
+        realBuyerPower12>=1.30;
+
+
+    var dualAccumulation=
+        realBalance12>=0.03 &&
+        realBalance3>=0.03 &&
+        legalBalance12>=0.02 &&
+        legalBalance3>=0.02;
+
+
+    if(!strongReal && !dualAccumulation)
+        return false;
+
+
+    // ------------------------------------------------------------
+    // 25. FINAL SCORE
+    // ------------------------------------------------------------
+
+    if(score<170)
+        return false;
+
+
+    // ------------------------------------------------------------
+    // 26. FINAL SAFETY
+    // ------------------------------------------------------------
+
+    if([is40]<70)
+        return false;
+
+    if([is21]>70)
+        return false;
+
+    if(severeDrops>=5)
+        return false;
+
+    if(currentBuyerPower<1.10)
+        return false;
+
+
+    return true;
+
+}()
+

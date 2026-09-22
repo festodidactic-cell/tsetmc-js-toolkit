@@ -1,0 +1,803 @@
+
+true==function()
+{
+    /*
+    =================================================================
+    FILTER 08
+    BTE - BREAKOUT TO NEXT-DAY EDGE
+
+    هدف:
+    شناسایی سهمی که هنوز در محدوده ورود قرار دارد
+    (تقریباً از منفی تا مثبت کم)، اما همزمان:
+
+    1) نقدشوندگی و سابقه معاملاتی مناسب دارد
+    2) در ناحیه ایمن از دامنه مجاز قرار دارد
+    3) قدرت خریدار بالا است
+    4) سرانه خرید حقیقی مناسب است
+    5) پول حقیقی به سمت سهم متمایل است
+    6) دفتر سفارش نشانه تقاضای واقعی دارد
+    7) قیمت در حال تثبیت و حرکت به سمت سقف روز است
+    8) حجم و تعداد معاملات فعال شده است
+    9) سابقه کوتاه مدت سهم از نظر بسته شدن و معاملات مناسب است
+    10) سهم هنوز آنقدر رشد نکرده که ورود دیرهنگام باشد
+
+    این فیلتر برای:
+    "BUY EARLY / SELL INTO STRENGTH"
+    طراحی شده است.
+
+    توجه:
+    هیچ تضمین ریاضی برای مثبت شدن روز بعد وجود ندارد.
+    فیلتر فقط احتمال سناریوی مطلوب را افزایش می دهد.
+
+    =================================================================
+    */
+
+
+    // ===============================================================
+    // 1. DATA SANITY
+    // ===============================================================
+
+    if(typeof [ih]=="undefined")
+        return false;
+
+    if([ih].length<15)
+        return false;
+
+    if(tmin<=0 || tmax<=0 || tmax<=tmin)
+        return false;
+
+    if(pl<=0 || pc<=0 || py<=0)
+        return false;
+
+    if(tvol<=0 || tno<=0 || tval<=0)
+        return false;
+
+
+    // ===============================================================
+    // 2. HISTORICAL LIQUIDITY GATE
+    // ===============================================================
+
+    if([is1]<=0 || [is5]<=0 || [is9]<=0)
+        return false;
+
+    if([is32]<70)
+        return false;
+
+
+    // سهم بسیار کم معامله یا سابقه ضعیف حذف شود.
+    if([is33]<65)
+        return false;
+
+
+    // ===============================================================
+    // 3. DYNAMIC MARKET RANGE
+    // ===============================================================
+
+    var band=tmax-tmin;
+
+    if(band<=0)
+        return false;
+
+
+    /*
+       normalizedPosition:
+
+       0   = کف مجاز
+       0.5 = تقریباً میانه دامنه
+       1   = سقف مجاز
+
+       در دامنه ±3%:
+
+       حدود 0.30 ≈ -1.2%
+       حدود 0.50 ≈ 0%
+       حدود 0.60 ≈ +0.6%
+
+       بنابراین اعداد ثابت -1% / +0.5% داخل منطق اصلی
+       هاردکد نشده اند.
+    */
+
+    var normalizedPosition=
+        (pl-tmin)/band;
+
+
+    // ===============================================================
+    // 4. ENTRY ZONE
+    // ===============================================================
+
+    /*
+       ناحیه مطلوب:
+
+       نه در کف رها شده
+       نه آنقدر بالا که ورود دیر باشد
+    */
+
+    if(normalizedPosition<0.30)
+        return false;
+
+    if(normalizedPosition>0.62)
+        return false;
+
+
+    // ===============================================================
+    // 5. DISTANCE TO UPPER LIMIT
+    // ===============================================================
+
+    var roomToTop=
+        (tmax-pl)/band;
+
+
+    // باید هنوز فضای کافی برای حرکت داشته باشد.
+    if(roomToTop<0.30)
+        return false;
+
+
+    // ===============================================================
+    // 6. REAL MONEY DATA
+    // ===============================================================
+
+    var buyI=(ct).Buy_I_Volume;
+    var sellI=(ct).Sell_I_Volume;
+
+    var buyC=(ct).Buy_CountI;
+    var sellC=(ct).Sell_CountI;
+
+
+    if(buyI<=0 || sellI<=0 ||
+       buyC<=0 || sellC<=0)
+        return false;
+
+
+    var buyPer=buyI/buyC;
+    var sellPer=sellI/sellC;
+
+
+    if(sellPer<=0)
+        return false;
+
+
+    var buyerPower=
+        buyPer/sellPer;
+
+
+    // ===============================================================
+    // 7. BUYER POWER GATE
+    // ===============================================================
+
+    if(buyerPower<1.60)
+        return false;
+
+
+    // ===============================================================
+    // 8. REAL MONEY BALANCE
+    // ===============================================================
+
+    var netReal=
+        buyI-sellI;
+
+    var netRealRatio=
+        netReal/buyI;
+
+
+    if(netRealRatio<0.05)
+        return false;
+
+
+    // ===============================================================
+    // 9. ORDER BOOK
+    // ===============================================================
+
+    var bid1=qd1;
+    var bid2=qd2;
+    var bid3=qd3;
+
+    var ask1=qo1;
+    var ask2=qo2;
+    var ask3=qo3;
+
+
+    var bidTop3=
+        bid1+bid2+bid3;
+
+    var askTop3=
+        ask1+ask2+ask3;
+
+
+    if(bidTop3<=0 || askTop3<=0)
+        return false;
+
+
+    var bookRatio=
+        bidTop3/askTop3;
+
+
+    // ===============================================================
+    // 10. DEMAND MUST NOT BE WEAK
+    // ===============================================================
+
+    if(bookRatio<0.45)
+        return false;
+
+
+    // ===============================================================
+    // 11. FIRST LEVEL DEFENSE
+    // ===============================================================
+
+    var firstDefense=0;
+
+    if(ask1>0)
+        firstDefense=
+        bid1/ask1;
+
+
+    if(firstDefense<0.40)
+        return false;
+
+
+    // ===============================================================
+    // 12. PRICE VS CLOSE
+    // ===============================================================
+
+    /*
+       برای خرید زودهنگام، آخرین قیمت نباید از قیمت پایانی
+       خیلی عقب باشد.
+
+       اما لازم نیست حتماً مثبت باشد.
+    */
+
+    if(pl<pc*0.985)
+        return false;
+
+
+    // ===============================================================
+    // 13. LAST PRICE SHOULD BE STRONGER THAN AVERAGE
+    // ===============================================================
+
+    if(pl<pf)
+        return false;
+
+
+    // ===============================================================
+    // 14. PRICE SHOULD NOT BE EXHAUSTED
+    // ===============================================================
+
+    /*
+       اگر همین الان تقریباً به سقف مجاز رسیده باشیم،
+       مزیت ورود از بین رفته است.
+    */
+
+    if(normalizedPosition>0.62)
+        return false;
+
+
+    // ===============================================================
+    // 15. INTRADAY RECOVERY
+    // ===============================================================
+
+    var intradayPosition=0;
+
+
+    if(pmax>pmin)
+    {
+        intradayPosition=
+        (pl-pmin)/(pmax-pmin);
+    }
+
+
+    /*
+       آخرین قیمت باید از نیمه پایین روز عبور کرده باشد.
+    */
+
+    if(intradayPosition<0.50)
+        return false;
+
+
+    // ===============================================================
+    // 16. PRICE MUST HAVE SHOWN UPWARD PRESSURE
+    // ===============================================================
+
+    var priceMomentum=0;
+
+
+    if(pl>pmin)
+        priceMomentum+=1;
+
+    if(pl>pf)
+        priceMomentum+=1;
+
+    if(pl>=pc)
+        priceMomentum+=1;
+
+    if(pmax>pl)
+        priceMomentum+=1;
+
+    if(pl>py)
+        priceMomentum+=2;
+
+
+    if(priceMomentum<3)
+        return false;
+
+
+    // ===============================================================
+    // 17. CURRENT PARTICIPATION VS 15-DAY HISTORY
+    // ===============================================================
+
+    var vSum=0;
+    var nSum=0;
+    var validDays=0;
+
+
+    for(var i=0;i<15;i++)
+    {
+        if(typeof [ih][i]!="undefined")
+        {
+            if([ih][i].QTotTran5J>0)
+                vSum += [ih][i].QTotTran5J;
+
+            if([ih][i].ZTotTran>0)
+                nSum += [ih][i].ZTotTran;
+
+            validDays++;
+        }
+    }
+
+
+    if(validDays<12)
+        return false;
+
+
+    var avgVol=
+        vSum/validDays;
+
+    var avgTrades=
+        nSum/validDays;
+
+
+    if(avgVol<=0 || avgTrades<=0)
+        return false;
+
+
+    var volumeAcceleration=
+        tvol/avgVol;
+
+    var tradeAcceleration=
+        tno/avgTrades;
+
+
+    if(volumeAcceleration<0.45)
+        return false;
+
+    if(tradeAcceleration<0.45)
+        return false;
+
+
+    // ===============================================================
+    // 18. VOLUME SHOULD NOT BE ABSURDLY DEAD
+    // ===============================================================
+
+    if(tvol<bvol*0.10)
+        return false;
+
+
+    // ===============================================================
+    // 19. HISTORICAL SHORT-TERM QUALITY
+    // ===============================================================
+
+    var traded=0;
+    var positive=0;
+    var strongClose=0;
+    var badDays=0;
+
+
+    for(var j=0;j<15;j++)
+    {
+        if(typeof [ih][j]!="undefined")
+        {
+            var d=[ih][j];
+
+            if(d.ZTotTran>0)
+                traded++;
+
+            if(d.PClosing>d.PriceYesterday)
+                positive++;
+
+            if(d.PriceMax>0 &&
+               d.PriceMin>0 &&
+               d.PDrCotVal>0)
+            {
+                var dayRange=
+                    d.PriceMax-d.PriceMin;
+
+                if(dayRange>0)
+                {
+                    var dayPosition=
+                    (d.PDrCotVal-d.PriceMin)/dayRange;
+
+                    if(dayPosition>=0.55)
+                        strongClose++;
+                }
+            }
+
+            if(d.PClosing<d.PriceYesterday*0.97)
+                badDays++;
+        }
+    }
+
+
+    if(traded<11)
+        return false;
+
+
+    // ===============================================================
+    // 20. RECENT HISTORY MUST NOT BE EXTREMELY WEAK
+    // ===============================================================
+
+    if(badDays>=5)
+        return false;
+
+
+    if(positive<4)
+        return false;
+
+
+    if(strongClose<4)
+        return false;
+
+
+    // ===============================================================
+    // 21. TODAY VS RECENT HISTORY
+    // ===============================================================
+
+    var todayQuality=0;
+
+
+    if(volumeAcceleration>=1.50)
+        todayQuality+=12;
+
+    else if(volumeAcceleration>=1.00)
+        todayQuality+=9;
+
+    else if(volumeAcceleration>=0.60)
+        todayQuality+=6;
+
+
+    if(tradeAcceleration>=1.50)
+        todayQuality+=10;
+
+    else if(tradeAcceleration>=1.00)
+        todayQuality+=8;
+
+    else if(tradeAcceleration>=0.60)
+        todayQuality+=5;
+
+
+    // ===============================================================
+    // 22. BUYER POWER SCORE
+    // ===============================================================
+
+    var buyerScore=0;
+
+
+    if(buyerPower>=3.50)
+        buyerScore=25;
+
+    else if(buyerPower>=3.00)
+        buyerScore=22;
+
+    else if(buyerPower>=2.50)
+        buyerScore=19;
+
+    else if(buyerPower>=2.00)
+        buyerScore=16;
+
+    else if(buyerPower>=1.80)
+        buyerScore=13;
+
+    else if(buyerPower>=1.60)
+        buyerScore=10;
+
+
+    // ===============================================================
+    // 23. REAL MONEY SCORE
+    // ===============================================================
+
+    var moneyScore=0;
+
+
+    if(netRealRatio>=0.30)
+        moneyScore=20;
+
+    else if(netRealRatio>=0.20)
+        moneyScore=17;
+
+    else if(netRealRatio>=0.12)
+        moneyScore=14;
+
+    else if(netRealRatio>=0.08)
+        moneyScore=11;
+
+    else
+        moneyScore=7;
+
+
+    // ===============================================================
+    // 24. ORDER BOOK SCORE
+    // ===============================================================
+
+    var bookScore=0;
+
+
+    if(bookRatio>=1.50)
+        bookScore=20;
+
+    else if(bookRatio>=1.20)
+        bookScore=17;
+
+    else if(bookRatio>=1.00)
+        bookScore=14;
+
+    else if(bookRatio>=0.75)
+        bookScore=11;
+
+    else if(bookRatio>=0.55)
+        bookScore=8;
+
+    else
+        bookScore=5;
+
+
+    // ===============================================================
+    // 25. FIRST LEVEL SCORE
+    // ===============================================================
+
+    var defenseScore=0;
+
+
+    if(firstDefense>=2.00)
+        defenseScore=15;
+
+    else if(firstDefense>=1.50)
+        defenseScore=13;
+
+    else if(firstDefense>=1.00)
+        defenseScore=11;
+
+    else if(firstDefense>=0.70)
+        defenseScore=8;
+
+    else
+        defenseScore=5;
+
+
+    // ===============================================================
+    // 26. PRICE POSITION SCORE
+    // ===============================================================
+
+    var positionScore=0;
+
+
+    if(normalizedPosition>=0.40 &&
+       normalizedPosition<=0.58)
+        positionScore=18;
+
+    else if(normalizedPosition>=0.33 &&
+            normalizedPosition<=0.62)
+        positionScore=13;
+
+    else
+        positionScore=8;
+
+
+    // ===============================================================
+    // 27. INTRADAY MOMENTUM SCORE
+    // ===============================================================
+
+    var momentumScore=0;
+
+
+    if(intradayPosition>=0.75)
+        momentumScore=18;
+
+    else if(intradayPosition>=0.65)
+        momentumScore=15;
+
+    else if(intradayPosition>=0.55)
+        momentumScore=12;
+
+    else
+        momentumScore=8;
+
+
+    // ===============================================================
+    // 28. HISTORICAL QUALITY SCORE
+    // ===============================================================
+
+    var historyScore=0;
+
+
+    if(traded>=14)
+        historyScore+=8;
+
+    else if(traded>=12)
+        historyScore+=6;
+
+    else
+        historyScore+=4;
+
+
+    if(positive>=9)
+        historyScore+=10;
+
+    else if(positive>=7)
+        historyScore+=8;
+
+    else if(positive>=5)
+        historyScore+=5;
+
+    else
+        historyScore+=2;
+
+
+    if(strongClose>=10)
+        historyScore+=10;
+
+    else if(strongClose>=8)
+        historyScore+=8;
+
+    else if(strongClose>=5)
+        historyScore+=5;
+
+    else
+        historyScore+=2;
+
+
+    // ===============================================================
+    // 29. CONTINUATION CONFIRMATIONS
+    // ===============================================================
+
+    var confirmations=0;
+
+
+    if(buyerPower>=2.00)
+        confirmations++;
+
+    if(netRealRatio>=0.12)
+        confirmations++;
+
+    if(bookRatio>=0.75)
+        confirmations++;
+
+    if(firstDefense>=0.70)
+        confirmations++;
+
+    if(intradayPosition>=0.55)
+        confirmations++;
+
+    if(pl>=pc)
+        confirmations++;
+
+    if(pl>pf)
+        confirmations++;
+
+    if(volumeAcceleration>=0.75)
+        confirmations++;
+
+    if(tradeAcceleration>=0.75)
+        confirmations++;
+
+    if(positive>=7)
+        confirmations++;
+
+    if(strongClose>=7)
+        confirmations++;
+
+
+    if(confirmations<7)
+        return false;
+
+
+    // ===============================================================
+    // 30. ANTI-CHASE PENALTY
+    // ===============================================================
+
+    var penalty=0;
+
+
+    // بیش از حد بالا رفته
+    if(normalizedPosition>0.58)
+        penalty+=12;
+
+
+    // خیلی نزدیک سقف
+    if(roomToTop<0.35)
+        penalty+=15;
+
+
+    // قیمت خیلی از کف فاصله گرفته
+    if(intradayPosition>0.90)
+        penalty+=10;
+
+
+    // حجم شدیداً غیرعادی ولی بدون قدرت خریدار کافی
+    if(volumeAcceleration>=3.00 &&
+       buyerPower<2.00)
+        penalty+=15;
+
+
+    // حجم بالا ولی پول حقیقی ضعیف
+    if(volumeAcceleration>=2.00 &&
+       netRealRatio<0.08)
+        penalty+=12;
+
+
+    // دفتر سفارش ضعیف
+    if(bookRatio<0.60)
+        penalty+=10;
+
+
+    // ===============================================================
+    // 31. FINAL SCORE
+    // ===============================================================
+
+    var finalScore=
+        todayQuality
+        +buyerScore
+        +moneyScore
+        +bookScore
+        +defenseScore
+        +positionScore
+        +momentumScore
+        +historyScore
+        -penalty;
+
+
+    // ===============================================================
+    // 32. HIGH QUALITY FINAL GATE
+    // ===============================================================
+
+    if(finalScore<135)
+        return false;
+
+
+    // ===============================================================
+    // 33. CAPITAL-TRAP PROTECTION
+    // ===============================================================
+
+    /*
+       اگر همزمان:
+       قدرت خرید ضعیف
+       دفتر سفارش ضعیف
+       قیمت پایین تر از پایانی
+       و فعالیت کم باشد،
+       به هیچ عنوان خروجی نده.
+    */
+
+    if(buyerPower<1.60 &&
+       bookRatio<0.70 &&
+       pl<pc &&
+       volumeAcceleration<0.75)
+        return false;
+
+
+    // ===============================================================
+    // 34. FINAL ENTRY QUALITY
+    // ===============================================================
+
+    if(confirmations<7)
+        return false;
+
+    if(buyerPower<1.60)
+        return false;
+
+    if(netRealRatio<0.05)
+        return false;
+
+    if(normalizedPosition<0.30 ||
+       normalizedPosition>0.62)
+        return false;
+
+
+    return true;
+
+}()
+

@@ -1,0 +1,22 @@
+{
+  "name": "tsetmc-js-toolkit",
+  "version": "1.0.0",
+  "description": "Lightweight zero-dependency JavaScript toolkit for TSETMC market screening, indicators, scoring, and financial data analysis.",
+  "private": true,
+  "scripts": {
+    "test": "node tests/core-modules.test.js"
+  },
+  "keywords": [
+    "tsetmc",
+    "javascript",
+    "stock-screener",
+    "iran-stock-market",
+    "technical-analysis",
+    "financial-data",
+    "market-analysis"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  }
+}

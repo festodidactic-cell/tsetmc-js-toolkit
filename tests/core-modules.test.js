@@ -300,6 +300,386 @@ test(
     }
 );
 
+// ------------------------------------------------------------
+// candidate-ranking.js — boundary and robustness tests
+// ------------------------------------------------------------
+
+test(
+    "candidate ranking classifies exact strong threshold",
+    function () {
+
+        const result =
+            rankCandidate({
+
+                smartMoney: 85,
+                accumulation: 85,
+                momentum: 85,
+                quality: 85,
+                regime: 85,
+                risk: 0
+
+            });
+
+
+        assert.strictEqual(
+            result.score,
+            85
+        );
+
+
+        assert.strictEqual(
+            result.classification,
+            "STRONG_CANDIDATE"
+        );
+
+    }
+);
+
+
+test(
+    "candidate ranking classifies exact review threshold",
+    function () {
+
+        const result =
+            rankCandidate({
+
+                smartMoney: 70,
+                accumulation: 70,
+                momentum: 70,
+                quality: 70,
+                regime: 70,
+                risk: 0
+
+            });
+
+
+        assert.strictEqual(
+            result.score,
+            70
+        );
+
+
+        assert.strictEqual(
+            result.classification,
+            "REVIEW"
+        );
+
+    }
+);
+
+
+test(
+    "candidate ranking classifies exact watch threshold",
+    function () {
+
+        const result =
+            rankCandidate({
+
+                smartMoney: 55,
+                accumulation: 55,
+                momentum: 55,
+                quality: 55,
+                regime: 55,
+                risk: 0
+
+            });
+
+
+        assert.strictEqual(
+            result.score,
+            55
+        );
+
+
+        assert.strictEqual(
+            result.classification,
+            "WATCH"
+        );
+
+    }
+);
+
+
+test(
+    "candidate ranking rejects score below watch threshold",
+    function () {
+
+        const result =
+            rankCandidate({
+
+                smartMoney: 54,
+                accumulation: 54,
+                momentum: 54,
+                quality: 54,
+                regime: 54,
+                risk: 0
+
+            });
+
+
+        assert.strictEqual(
+            result.classification,
+            "REJECT"
+        );
+
+    }
+);
+
+
+test(
+    "candidate ranking handles maximum risk penalty",
+    function () {
+
+        const result =
+            rankCandidate({
+
+                smartMoney: 100,
+                accumulation: 100,
+                momentum: 100,
+                quality: 100,
+                regime: 100,
+                risk: 100
+
+            });
+
+
+        assert.strictEqual(
+            result.score,
+            75
+        );
+
+
+        assert.strictEqual(
+            result.classification,
+            "REVIEW"
+        );
+
+    }
+);
+
+
+test(
+    "candidate ranking produces maximum score with zero risk",
+    function () {
+
+        const result =
+            rankCandidate({
+
+                smartMoney: 100,
+                accumulation: 100,
+                momentum: 100,
+                quality: 100,
+                regime: 100,
+                risk: 0
+
+            });
+
+
+        assert.strictEqual(
+            result.score,
+            100
+        );
+
+
+        assert.strictEqual(
+            result.classification,
+            "STRONG_CANDIDATE"
+        );
+
+    }
+);
+
+
+test(
+    "candidate ranking clamps negative inputs to zero",
+    function () {
+
+        const result =
+            rankCandidate({
+
+                smartMoney: -100,
+                accumulation: -20,
+                momentum: -10,
+                quality: -1,
+                regime: -500,
+                risk: -100
+
+            });
+
+
+        assert.strictEqual(
+            result.score,
+            0
+        );
+
+
+        assert.strictEqual(
+            result.classification,
+            "REJECT"
+        );
+
+    }
+);
+
+
+test(
+    "candidate ranking handles malformed input values",
+    function () {
+
+        const result =
+            rankCandidate({
+
+                smartMoney: "invalid",
+                accumulation: null,
+                momentum: undefined,
+                quality: NaN,
+                regime: Infinity,
+                risk: "invalid"
+
+            });
+
+
+        assert.strictEqual(
+            result.score,
+            0
+        );
+
+
+        assert.strictEqual(
+            result.classification,
+            "REJECT"
+        );
+
+    }
+);
+
+
+test(
+    "candidate ranking accepts numeric strings safely",
+    function () {
+
+        const result =
+            rankCandidate({
+
+                smartMoney: "80",
+                accumulation: "80",
+                momentum: "80",
+                quality: "80",
+                regime: "80",
+                risk: "0"
+
+            });
+
+
+        assert.strictEqual(
+            result.score,
+            80
+        );
+
+
+        assert.strictEqual(
+            result.classification,
+            "REVIEW"
+        );
+
+    }
+);
+
+
+test(
+    "candidate ranking exposes normalized component scores",
+    function () {
+
+        const result =
+            rankCandidate({
+
+                smartMoney: 120,
+                accumulation: 80,
+                momentum: 70,
+                quality: 60,
+                regime: 50,
+                risk: 30
+
+            });
+
+
+        assert.strictEqual(
+            result.components.smartMoney,
+            100
+        );
+
+
+        assert.strictEqual(
+            result.components.accumulation,
+            80
+        );
+
+
+        assert.strictEqual(
+            result.components.risk,
+            30
+        );
+
+    }
+);
+
+
+test(
+    "candidate ranking weighted values match configured weights",
+    function () {
+
+        const result =
+            rankCandidate({
+
+                smartMoney: 100,
+                accumulation: 100,
+                momentum: 100,
+                quality: 100,
+                regime: 100,
+                risk: 20
+
+            });
+
+
+        assert.strictEqual(
+            result.weighted.smartMoney,
+            30
+        );
+
+
+        assert.strictEqual(
+            result.weighted.accumulation,
+            25
+        );
+
+
+        assert.strictEqual(
+            result.weighted.momentum,
+            20
+        );
+
+
+        assert.strictEqual(
+            result.weighted.quality,
+            15
+        );
+
+
+        assert.strictEqual(
+            result.weighted.regime,
+            10
+        );
+
+
+        assert.strictEqual(
+            result.weighted.riskPenalty,
+            5
+        );
+
+    }
+);
+
+
 
 // ------------------------------------------------------------
 // Summary

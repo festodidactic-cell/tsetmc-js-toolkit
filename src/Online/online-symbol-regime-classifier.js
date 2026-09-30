@@ -54,12 +54,17 @@ true == function ()
     {
 
         if (
-            typeof [ih][i] == "undefined" ||
-            [ih][i].PClosing <= 0 ||
-            [ih][i].PriceMax <= 0 ||
-            [ih][i].PriceMin <= 0
-        )
-            continue;
+    typeof [ih][i] == "undefined" ||
+    !Number.isFinite(Number([ih][i].PClosing)) ||
+    !Number.isFinite(Number([ih][i].PriceMax)) ||
+    !Number.isFinite(Number([ih][i].PriceMin)) ||
+    !Number.isFinite(Number([ih][i].QTotTran5J)) ||
+    Number([ih][i].PClosing) <= 0 ||
+    Number([ih][i].PriceMax) <= 0 ||
+    Number([ih][i].PriceMin) <= 0 ||
+    Number([ih][i].QTotTran5J) < 0
+)
+    continue;
 
 
         var dailyClose =
@@ -83,12 +88,8 @@ true == function ()
             dailyRangePercent;
 
 
-        if ([ih][i].QTotTran5J > 0)
-        {
-            volumeSum20 +=
-                [ih][i].QTotTran5J;
-        }
-
+        volumeSum20 +=
+    Number([ih][i].QTotTran5J);
 
         if (
             high20 === 0 ||

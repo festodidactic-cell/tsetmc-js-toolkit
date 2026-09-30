@@ -25,6 +25,14 @@ Its purpose is to provide a verified mapping between raw TSETMC variables and th
 | `tvol` | Total traded volume in the current session | Current session | `tradeVolume` | Possible | Yes | Relative volume, liquidity, risk and screening modules | Verified |
 | `tval` | Total traded value in the current session | Current session | `tradeValue` | Possible | Yes | Liquidity and market-quality analysis | Verified |
 | `pf` | First traded price of the current session | Current session | `firstPrice` | Possible | Yes | Intraday direction and opening-behaviour analysis | Verified |
+| `(ct).Buy_CountI` | Number of individual (real-person) buyers | Current session / client type | `individualBuyerCount` | Possible | Yes | Buyer-power and participant analysis | Verified |
+| `(ct).Buy_I_Volume` | Volume purchased by individual (real-person) investors | Current session / client type | `individualBuyVolume` | Possible | Yes | Buyer power, real flow and participant analysis | Verified |
+| `(ct).Sell_CountI` | Number of individual (real-person) sellers | Current session / client type | `individualSellerCount` | Possible | Yes | Buyer-power and participant analysis | Verified |
+| `(ct).Sell_I_Volume` | Volume sold by individual (real-person) investors | Current session / client type | `individualSellVolume` | Possible | Yes | Buyer power, real flow and participant analysis | Verified |
+| `(ct).Buy_CountN` | Number of legal/institutional buyers | Current session / client type | `institutionalBuyerCount` | Possible | Yes | Institutional participation analysis | Verified |
+| `(ct).Buy_N_Volume` | Volume purchased by legal/institutional investors | Current session / client type | `institutionalBuyVolume` | Possible | Yes | Participant-footprint and institutional-flow analysis | Verified |
+| `(ct).Sell_CountN` | Number of legal/institutional sellers | Current session / client type | `institutionalSellerCount` | Possible | Yes | Institutional participation analysis | Verified |
+| `(ct).Sell_N_Volume` | Volume sold by legal/institutional investors | Current session / client type | `institutionalSellVolume` | Possible | Yes | Participant-footprint and institutional-flow analysis | Verified |
 ## Validation Status
 
 Field definitions in this document must be verified before being marked as stable.

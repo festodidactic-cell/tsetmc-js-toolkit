@@ -33,6 +33,20 @@ Its purpose is to provide a verified mapping between raw TSETMC variables and th
 | `(ct).Buy_N_Volume` | Volume purchased by legal/institutional investors | Current session / client type | `institutionalBuyVolume` | Possible | Yes | Participant-footprint and institutional-flow analysis | Verified |
 | `(ct).Sell_CountN` | Number of legal/institutional sellers | Current session / client type | `institutionalSellerCount` | Possible | Yes | Institutional participation analysis | Verified |
 | `(ct).Sell_N_Volume` | Volume sold by legal/institutional investors | Current session / client type | `institutionalSellVolume` | Possible | Yes | Participant-footprint and institutional-flow analysis | Verified |
+| `[ih][n].PClosing` | Closing price for a historical trading session | Historical session | `historicalClosingPrice` | Yes | Yes | Trend, moving-average and structure calculations | Verified |
+| `[ih][n].PDrCotVal` | Last traded price for a historical trading session | Historical session | `historicalLastPrice` | Yes | Yes | Historical price-behaviour analysis | Verified |
+| `[ih][n].PriceMin` | Lowest traded price for a historical trading session | Historical session | `historicalLow` | Yes | Yes | Rolling-low and range calculations | Verified |
+| `[ih][n].PriceMax` | Highest traded price for a historical trading session | Historical session | `historicalHigh` | Yes | Yes | Resistance, breakout and rolling-high calculations | Verified |
+| `[ih][n].ZTotTran` | Number of trades in a historical trading session | Historical session | `historicalTradeCount` | Yes | Yes | Historical activity analysis | Verified |
+| `[ih][n].QTotTran5J` | Total traded volume in a historical trading session | Historical session | `historicalTradeVolume` | Yes | Yes | Average-volume and relative-volume calculations | Verified |
+| `[ih][n].QTotCap` | Total traded value in a historical trading session | Historical session | `historicalTradeValue` | Yes | Yes | Historical liquidity analysis | Verified |
+## Historical Indexing Note
+
+The meaning of the `[ih][n]` index must be validated against the active TSETMC runtime before relying on a fixed assumption such as `[ih][0] = today` or `[ih][0] = previous trading day`.
+
+The history array may also contain fewer records than expected for newly listed, suspended, or insufficient-history symbols.
+
+Runtime code must therefore validate history availability before accessing `[ih][n]`.
 ## Validation Status
 
 Field definitions in this document must be verified before being marked as stable.

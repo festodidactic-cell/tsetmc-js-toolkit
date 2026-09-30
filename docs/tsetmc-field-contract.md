@@ -21,6 +21,10 @@ Its purpose is to provide a verified mapping between raw TSETMC variables and th
 | `py` | Previous trading day's price | Current session reference | `previousClose` | Possible | Yes | Price-change and trend calculations | Verified |
 | `pmin` | Lowest traded price of the current session | Current session | `dayLow` | Possible | Yes | Intraday range and price-position calculations | Verified |
 | `pmax` | Highest traded price of the current session | Current session | `dayHigh` | Possible | Yes | Breakout, rejection and range calculations | Verified |
+| `tno` | Number of trades in the current session | Current session | `tradeCount` | Possible | Yes | Trade activity and quality checks | Verified |
+| `tvol` | Total traded volume in the current session | Current session | `tradeVolume` | Possible | Yes | Relative volume, liquidity, risk and screening modules | Verified |
+| `tval` | Total traded value in the current session | Current session | `tradeValue` | Possible | Yes | Liquidity and market-quality analysis | Verified |
+| `pf` | First traded price of the current session | Current session | `firstPrice` | Possible | Yes | Intraday direction and opening-behaviour analysis | Verified |
 ## Validation Status
 
 Field definitions in this document must be verified before being marked as stable.

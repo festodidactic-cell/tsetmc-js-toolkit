@@ -71,6 +71,10 @@ true == function ()
 
     var validCloseDays = 0;
     var validVolumeDays = 0;
+    var closeCount3 = 0;
+    var closeCount5 = 0;
+    var closeCount10 = 0;
+ 
 
     var risingTransitions = 0;
 
@@ -89,16 +93,25 @@ true == function ()
             [ih][i].PClosing;
 
 
-        if (i < 3)
-            closeSum3 += closeValue;
+       if (i < 3)
+{
+    closeSum3 += closeValue;
+    closeCount3++;
+}
 
 
-        if (i < 5)
-            closeSum5 += closeValue;
+if (i < 5)
+{
+    closeSum5 += closeValue;
+    closeCount5++;
+}
 
 
-        if (i < 10)
-            closeSum10 += closeValue;
+if (i < 10)
+{
+    closeSum10 += closeValue;
+    closeCount10++;
+}
 
 
         if (
@@ -117,12 +130,14 @@ true == function ()
     }
 
 
-    if (
-        validCloseDays < 10 ||
-        validVolumeDays < 15
-    )
-        return false;
-
+  if (
+    validCloseDays < 10 ||
+    validVolumeDays < 15 ||
+    closeCount3 < 3 ||
+    closeCount5 < 5 ||
+    closeCount10 < 10
+)
+    return false;
 
     // ------------------------------------------------------------
     // Moving averages

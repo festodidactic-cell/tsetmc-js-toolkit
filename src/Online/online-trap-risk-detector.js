@@ -4,12 +4,13 @@
 
  Detects potentially low-quality high-volume moves using:
  - abnormal relative volume
- - weak real-buyer power
- - negative real flow
- - rejection from intraday high
- - weak price acceptance
+ - rejection from the intraday high
+ - failed price acceptance
+ - weak real-buyer confirmation
+ - reversal after an intraday upward excursion
 
- This is a risk-detection filter.
+ This module focuses on failed high-activity moves.
+
  It does not identify manipulation and is
  not an automatic sell recommendation.
 */
@@ -19,22 +20,40 @@ true == function ()
 {
 
     // ------------------------------------------------------------
-    // Basic validation
+    // Current-session validation
     // ------------------------------------------------------------
 
     if (
-        pc <= 0 ||
-        py <= 0 ||
-        tvol <= 0
+        !Number.isFinite(Number(pl)) ||
+        !Number.isFinite(Number(pc)) ||
+        !Number.isFinite(Number(py)) ||
+        !Number.isFinite(Number(pmin)) ||
+        !Number.isFinite(Number(pmax)) ||
+        !Number.isFinite(Number(tvol)) ||
+        Number(pl) <= 0 ||
+        Number(pc) <= 0 ||
+        Number(py) <= 0 ||
+        Number(pmin) <= 0 ||
+        Number(pmax) <= 0 ||
+        Number(tvol) <= 0 ||
+        Number(pmax) < Number(pmin)
     )
         return false;
 
 
+    // ------------------------------------------------------------
+    // Individual-investor validation
+    // ------------------------------------------------------------
+
     if (
-        (ct).Buy_CountI <= 0 ||
-        (ct).Sell_CountI <= 0 ||
-        (ct).Buy_I_Volume <= 0 ||
-        (ct).Sell_I_Volume <= 0
+        !Number.isFinite(Number((ct).Buy_CountI)) ||
+        !Number.isFinite(Number((ct).Sell_CountI)) ||
+        !Number.isFinite(Number((ct).Buy_I_Volume)) ||
+        !Number.isFinite(Number((ct).Sell_I_Volume)) ||
+        Number((ct).Buy_CountI) <= 0 ||
+        Number((ct).Sell_CountI) <= 0 ||
+        Number((ct).Buy_I_Volume) <= 0 ||
+        Number((ct).Sell_I_Volume) <= 0
     )
         return false;
 
@@ -44,30 +63,30 @@ true == function ()
     // ------------------------------------------------------------
 
     var avgRealBuy =
-        (ct).Buy_I_Volume /
-        (ct).Buy_CountI;
+        Number((ct).Buy_I_Volume) /
+        Number((ct).Buy_CountI);
 
 
     var avgRealSell =
-        (ct).Sell_I_Volume /
-        (ct).Sell_CountI;
+        Number((ct).Sell_I_Volume) /
+        Number((ct).Sell_CountI);
 
 
-    if (avgRealSell <= 0)
+    if (
+        !Number.isFinite(avgRealBuy) ||
+        !Number.isFinite(avgRealSell) ||
+        avgRealSell <= 0
+    )
         return false;
 
 
     var buyerPower =
-        avgRealBuy / avgRealSell;
-
-
-    var netRealFlow =
-        (ct).Buy_I_Volume -
-        (ct).Sell_I_Volume;
+        avgRealBuy /
+        avgRealSell;
 
 
     // ------------------------------------------------------------
-    // 20-session volume baseline
+    // Historical volume baseline
     // ------------------------------------------------------------
 
     var volumeSum = 0;
@@ -78,17 +97,20 @@ true == function ()
     {
 
         if (
-            typeof [ih][i] != "undefined" &&
-            [ih][i].QTotTran5J > 0
+            typeof [ih][i] == "undefined" ||
+            !Number.isFinite(
+                Number([ih][i].QTotTran5J)
+            ) ||
+            Number([ih][i].QTotTran5J) <= 0
         )
-        {
+            continue;
 
-            volumeSum +=
-                [ih][i].QTotTran5J;
 
-            validDays++;
+        volumeSum +=
+            Number([ih][i].QTotTran5J);
 
-        }
+
+        validDays++;
 
     }
 
@@ -97,62 +119,83 @@ true == function ()
         return false;
 
 
-    var avgVolume20 =
-        volumeSum / validDays;
+    var avgHistoricalVolume =
+        volumeSum /
+        validDays;
 
 
-    if (avgVolume20 <= 0)
+    if (
+        !Number.isFinite(avgHistoricalVolume) ||
+        avgHistoricalVolume <= 0
+    )
         return false;
 
 
     var volumeRatio =
-        tvol / avgVolume20;
+        Number(tvol) /
+        avgHistoricalVolume;
 
 
     // ------------------------------------------------------------
-    // Intraday price rejection
+    // Intraday rejection structure
     // ------------------------------------------------------------
 
     var dayRange =
-        pmax - pmin;
+        Number(pmax) -
+        Number(pmin);
 
 
-    var pricePosition =
-        0.5;
+    var pricePosition = 0.5;
 
 
     if (dayRange > 0)
     {
         pricePosition =
-            (pl - pmin) /
+            (
+                Number(pl) -
+                Number(pmin)
+            ) /
             dayRange;
     }
 
 
-    var rejectionFromHigh = 0;
+    if (pricePosition < 0)
+        pricePosition = 0;
 
 
-    if (pmax > 0)
-    {
-        rejectionFromHigh =
-            ((pmax - pl) /
-            pmax) * 100;
-    }
+    if (pricePosition > 1)
+        pricePosition = 1;
+
+
+    var rejectionFromHigh =
+        (
+            (Number(pmax) - Number(pl)) /
+            Number(pmax)
+        ) * 100;
 
 
     var dayChange =
-        ((pl - py) /
-        py) * 100;
+        (
+            (Number(pl) - Number(py)) /
+            Number(py)
+        ) * 100;
+
+
+    var highExcursion =
+        (
+            (Number(pmax) - Number(py)) /
+            Number(py)
+        ) * 100;
 
 
     // ------------------------------------------------------------
-    // Trap risk score
+    // Trap-risk score
     // ------------------------------------------------------------
 
     var trapRisk = 0;
 
 
-    // Heavy activity requires stronger confirmation
+    // Unusually heavy activity
     if (volumeRatio >= 1.80)
         trapRisk += 20;
 
@@ -161,31 +204,37 @@ true == function ()
         trapRisk += 10;
 
 
-    // Weak real-buyer power
-    if (buyerPower < 1.00)
-        trapRisk += 25;
+    // Meaningful rejection from today's high
+    if (rejectionFromHigh >= 2.0)
+        trapRisk += 20;
 
 
-    if (buyerPower < 0.75)
+    if (rejectionFromHigh >= 4.0)
         trapRisk += 10;
 
 
-    // Net individual selling
-    if (netRealFlow < 0)
+    // Price no longer holds the upper part of the range
+    if (pricePosition <= 0.55)
         trapRisk += 15;
 
 
-    // Price rejected from today's high
-    if (rejectionFromHigh >= 2.0)
+    // Last price is weaker than closing price
+    if (Number(pl) < Number(pc))
         trapRisk += 10;
 
 
-    // Price finishes in lower part of intraday range
+    // Price moved meaningfully above yesterday,
+    // but much of that move has failed to hold
     if (
-        dayRange > 0 &&
-        pricePosition <= 0.40
+        highExcursion >= 2.0 &&
+        dayChange <= 0.50
     )
         trapRisk += 10;
+
+
+    // Real buyers do not confirm the high-activity move
+    if (buyerPower < 1.00)
+        trapRisk += 5;
 
 
     if (trapRisk > 100)
@@ -221,13 +270,15 @@ true == function ()
 
 
     cfield4 =
-        "Buyer Power: " +
-        buyerPower.toFixed(2);
+        "Reject: " +
+        rejectionFromHigh.toFixed(2) +
+        "%";
 
 
     cfield5 =
-        "Reject: " +
-        rejectionFromHigh.toFixed(2) +
+        "Position: " +
+        (pricePosition * 100)
+            .toFixed(0) +
         "%";
 
 
@@ -238,7 +289,7 @@ true == function ()
     if (
         trapRisk >= 65 &&
         volumeRatio >= 1.50 &&
-        buyerPower < 1.10
+        rejectionFromHigh >= 1.50
     )
         return true;
 

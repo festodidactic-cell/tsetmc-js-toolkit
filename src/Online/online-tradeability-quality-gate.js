@@ -12,7 +12,7 @@
  - relative traded value
  - real-buyer power
  - transaction activity
- - intraday price stability
+ - intraday price position
 
  This is a market-quality gate,
  not an automatic buy recommendation.
@@ -23,19 +23,36 @@ true == function ()
 {
 
     // ------------------------------------------------------------
-    // Basic validation
+    // Current-session validation
     // ------------------------------------------------------------
 
-    if (pc <= 0 ||
-        tvol <= 0 ||
-        tno <= 0)
+    if (
+        !Number.isFinite(Number(pl)) ||
+        !Number.isFinite(Number(pmin)) ||
+        !Number.isFinite(Number(pmax)) ||
+        !Number.isFinite(Number(tvol)) ||
+        !Number.isFinite(Number(tval)) ||
+        !Number.isFinite(Number(tno)) ||
+        Number(pl) <= 0 ||
+        Number(pmin) <= 0 ||
+        Number(pmax) <= 0 ||
+        Number(tvol) <= 0 ||
+        Number(tval) <= 0 ||
+        Number(tno) <= 0
+    )
         return false;
 
 
-    if ((ct).Buy_CountI <= 0 ||
-        (ct).Sell_CountI <= 0 ||
-        (ct).Buy_I_Volume <= 0 ||
-        (ct).Sell_I_Volume <= 0)
+    if (
+        !Number.isFinite(Number((ct).Buy_CountI)) ||
+        !Number.isFinite(Number((ct).Sell_CountI)) ||
+        !Number.isFinite(Number((ct).Buy_I_Volume)) ||
+        !Number.isFinite(Number((ct).Sell_I_Volume)) ||
+        Number((ct).Buy_CountI) <= 0 ||
+        Number((ct).Sell_CountI) <= 0 ||
+        Number((ct).Buy_I_Volume) <= 0 ||
+        Number((ct).Sell_I_Volume) <= 0
+    )
         return false;
 
 
@@ -44,21 +61,26 @@ true == function ()
     // ------------------------------------------------------------
 
     var avgRealBuy =
-        (ct).Buy_I_Volume /
-        (ct).Buy_CountI;
+        Number((ct).Buy_I_Volume) /
+        Number((ct).Buy_CountI);
 
 
     var avgRealSell =
-        (ct).Sell_I_Volume /
-        (ct).Sell_CountI;
+        Number((ct).Sell_I_Volume) /
+        Number((ct).Sell_CountI);
 
 
-    if (avgRealSell <= 0)
+    if (
+        !Number.isFinite(avgRealBuy) ||
+        !Number.isFinite(avgRealSell) ||
+        avgRealSell <= 0
+    )
         return false;
 
 
     var buyerPower =
-        avgRealBuy / avgRealSell;
+        avgRealBuy /
+        avgRealSell;
 
 
     // ------------------------------------------------------------
@@ -73,28 +95,25 @@ true == function ()
     for (var i = 0; i < 20; i++)
     {
 
-        if (typeof [ih][i] == "undefined")
+        if (
+            typeof [ih][i] == "undefined" ||
+            !Number.isFinite(Number([ih][i].QTotTran5J)) ||
+            !Number.isFinite(Number([ih][i].QTotCap)) ||
+            Number([ih][i].QTotTran5J) <= 0 ||
+            Number([ih][i].QTotCap) <= 0
+        )
             continue;
 
 
-        if (
-            [ih][i].QTotTran5J > 0 &&
-            [ih][i].PClosing > 0
-        )
-        {
-
-            volumeSum +=
-                [ih][i].QTotTran5J;
+        volumeSum +=
+            Number([ih][i].QTotTran5J);
 
 
-            valueSum +=
-                [ih][i].QTotTran5J *
-                [ih][i].PClosing;
+        valueSum +=
+            Number([ih][i].QTotCap);
 
 
-            validDays++;
-
-        }
+        validDays++;
 
     }
 
@@ -105,16 +124,22 @@ true == function ()
         return false;
 
 
-    var avgVolume20 =
-        volumeSum / validDays;
+    var avgHistoricalVolume =
+        volumeSum /
+        validDays;
 
 
-    var avgValue20 =
-        valueSum / validDays;
+    var avgHistoricalValue =
+        valueSum /
+        validDays;
 
 
-    if (avgVolume20 <= 0 ||
-        avgValue20 <= 0)
+    if (
+        !Number.isFinite(avgHistoricalVolume) ||
+        !Number.isFinite(avgHistoricalValue) ||
+        avgHistoricalVolume <= 0 ||
+        avgHistoricalValue <= 0
+    )
         return false;
 
 
@@ -123,33 +148,22 @@ true == function ()
     // ------------------------------------------------------------
 
     var volumeRatio =
-        tvol / avgVolume20;
-
-
-    var currentValue =
-        tvol * pc;
+        Number(tvol) /
+        avgHistoricalVolume;
 
 
     var valueRatio =
-        currentValue / avgValue20;
+        Number(tval) /
+        avgHistoricalValue;
 
 
     // ------------------------------------------------------------
-    // Intraday stability
+    // Intraday price position
     // ------------------------------------------------------------
 
     var dayRange =
-        pmax - pmin;
-
-
-    var rangePercent = 0;
-
-
-    if (pmin > 0)
-    {
-        rangePercent =
-            (dayRange / pmin) * 100;
-    }
+        Number(pmax) -
+        Number(pmin);
 
 
     var rangePosition = 0.5;
@@ -158,9 +172,20 @@ true == function ()
     if (dayRange > 0)
     {
         rangePosition =
-            (pl - pmin) /
+            (
+                Number(pl) -
+                Number(pmin)
+            ) /
             dayRange;
     }
+
+
+    if (rangePosition < 0)
+        rangePosition = 0;
+
+
+    if (rangePosition > 1)
+        rangePosition = 1;
 
 
     // ------------------------------------------------------------
@@ -186,7 +211,7 @@ true == function ()
 
 
     // Adequate transaction activity
-    if (tno >= 30)
+    if (Number(tno) >= 30)
         qualityScore += 15;
 
 

@@ -213,9 +213,7 @@ true == function ()
         "NEUTRAL";
 
 
-    var regimeScore =
-        50;
-
+   
 
     // Volatility contraction
     if (
@@ -226,8 +224,7 @@ true == function ()
         regime =
             "COMPRESSION";
 
-        regimeScore =
-            75;
+       
     }
 
 
@@ -240,8 +237,7 @@ true == function ()
         regime =
             "EXPANSION";
 
-        regimeScore =
-            80;
+       
     }
 
 
@@ -254,8 +250,6 @@ true == function ()
         regime =
             "UPTREND";
 
-        regimeScore =
-            80;
     }
 
 
@@ -268,8 +262,7 @@ true == function ()
         regime =
             "DOWNTREND";
 
-        regimeScore =
-            80;
+     
     }
 
 

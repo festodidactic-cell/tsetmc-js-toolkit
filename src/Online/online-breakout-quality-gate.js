@@ -3,7 +3,7 @@
  Online Breakout Quality Gate
 
  Validates the quality of a breakout using:
- - prior 20-session resistance
+ - prior historical resistance
  - relative volume
  - real-buyer power
  - intraday price position
@@ -18,31 +18,56 @@ true == function ()
 {
 
     // ------------------------------------------------------------
-    // Required current client-type data
+    // Current-session validation
     // ------------------------------------------------------------
 
-    if ((ct).Buy_CountI <= 0 ||
-        (ct).Sell_CountI <= 0 ||
-        (ct).Buy_I_Volume <= 0 ||
-        (ct).Sell_I_Volume <= 0)
+    if (
+        !Number.isFinite(Number(pl)) ||
+        !Number.isFinite(Number(pc)) ||
+        !Number.isFinite(Number(pmin)) ||
+        !Number.isFinite(Number(pmax)) ||
+        !Number.isFinite(Number(tvol)) ||
+        Number(pl) <= 0 ||
+        Number(pc) <= 0 ||
+        Number(pmin) <= 0 ||
+        Number(pmax) <= 0 ||
+        Number(tvol) < 0
+    )
+        return false;
+
+
+    if (
+        !Number.isFinite(Number((ct).Buy_CountI)) ||
+        !Number.isFinite(Number((ct).Sell_CountI)) ||
+        !Number.isFinite(Number((ct).Buy_I_Volume)) ||
+        !Number.isFinite(Number((ct).Sell_I_Volume)) ||
+        Number((ct).Buy_CountI) <= 0 ||
+        Number((ct).Sell_CountI) <= 0 ||
+        Number((ct).Buy_I_Volume) <= 0 ||
+        Number((ct).Sell_I_Volume) <= 0
+    )
         return false;
 
 
     // ------------------------------------------------------------
-    // Buyer power
+    // Real buyer power
     // ------------------------------------------------------------
 
     var avgRealBuy =
-        (ct).Buy_I_Volume /
-        (ct).Buy_CountI;
+        Number((ct).Buy_I_Volume) /
+        Number((ct).Buy_CountI);
 
 
     var avgRealSell =
-        (ct).Sell_I_Volume /
-        (ct).Sell_CountI;
+        Number((ct).Sell_I_Volume) /
+        Number((ct).Sell_CountI);
 
 
-    if (avgRealSell <= 0)
+    if (
+        !Number.isFinite(avgRealBuy) ||
+        !Number.isFinite(avgRealSell) ||
+        avgRealSell <= 0
+    )
         return false;
 
 
@@ -51,7 +76,7 @@ true == function ()
 
 
     // ------------------------------------------------------------
-    // Previous 20-session resistance + average volume
+    // Historical resistance + average volume
     // ------------------------------------------------------------
 
     var previousHigh = 0;
@@ -62,40 +87,62 @@ true == function ()
     for (var i = 0; i < 20; i++)
     {
 
-        if (typeof [ih][i] == "undefined")
+        if (
+            typeof [ih][i] == "undefined" ||
+            !Number.isFinite(Number([ih][i].PriceMax)) ||
+            !Number.isFinite(Number([ih][i].QTotTran5J)) ||
+            Number([ih][i].PriceMax) <= 0 ||
+            Number([ih][i].QTotTran5J) < 0
+        )
             continue;
 
 
-        if ([ih][i].PriceMax > previousHigh)
-            previousHigh = [ih][i].PriceMax;
+        var historicalHigh =
+            Number([ih][i].PriceMax);
 
 
-        if ([ih][i].QTotTran5J > 0)
+        var historicalVolume =
+            Number([ih][i].QTotTran5J);
+
+
+        if (historicalHigh > previousHigh)
         {
-            volumeSum +=
-                [ih][i].QTotTran5J;
-
-            validDays++;
+            previousHigh =
+                historicalHigh;
         }
+
+
+        volumeSum +=
+            historicalVolume;
+
+
+        validDays++;
 
     }
 
 
-    if (previousHigh <= 0 ||
-        validDays < 15)
+    if (
+        previousHigh <= 0 ||
+        validDays < 15
+    )
         return false;
 
 
-    var avgVolume20 =
-        volumeSum / validDays;
+    var avgHistoricalVolume =
+        volumeSum /
+        validDays;
 
 
-    if (avgVolume20 <= 0)
+    if (
+        !Number.isFinite(avgHistoricalVolume) ||
+        avgHistoricalVolume <= 0
+    )
         return false;
 
 
     var volumeRatio =
-        tvol / avgVolume20;
+        Number(tvol) /
+        avgHistoricalVolume;
 
 
     // ------------------------------------------------------------
@@ -103,13 +150,17 @@ true == function ()
     // ------------------------------------------------------------
 
     var breakoutPercent =
-        ((pl - previousHigh) /
-        previousHigh) * 100;
+        (
+            (Number(pl) - previousHigh) /
+            previousHigh
+        ) * 100;
 
 
     var closingAcceptance =
-        ((pc - previousHigh) /
-        previousHigh) * 100;
+        (
+            (Number(pc) - previousHigh) /
+            previousHigh
+        ) * 100;
 
 
     // ------------------------------------------------------------
@@ -117,7 +168,8 @@ true == function ()
     // ------------------------------------------------------------
 
     var dayRange =
-        pmax - pmin;
+        Number(pmax) -
+        Number(pmin);
 
 
     var rangePosition = 0.5;
@@ -126,9 +178,20 @@ true == function ()
     if (dayRange > 0)
     {
         rangePosition =
-            (pl - pmin) /
+            (
+                Number(pl) -
+                Number(pmin)
+            ) /
             dayRange;
     }
+
+
+    if (rangePosition < 0)
+        rangePosition = 0;
+
+
+    if (rangePosition > 1)
+        rangePosition = 1;
 
 
     // ------------------------------------------------------------
@@ -138,8 +201,8 @@ true == function ()
     var qualityScore = 0;
 
 
-    // Actual penetration of previous resistance
-    if (pl > previousHigh)
+    // Actual penetration of historical resistance
+    if (Number(pl) > previousHigh)
         qualityScore += 25;
 
 
@@ -164,7 +227,7 @@ true == function ()
 
 
     // Last price is not weaker than closing price
-    if (pl >= pc)
+    if (Number(pl) >= Number(pc))
         qualityScore += 10;
 
 
@@ -216,7 +279,7 @@ true == function ()
     // ------------------------------------------------------------
 
     if (
-        pl > previousHigh &&
+        Number(pl) > previousHigh &&
         qualityScore >= 70 &&
         volumeRatio >= 1.30 &&
         buyerPower >= 1.15

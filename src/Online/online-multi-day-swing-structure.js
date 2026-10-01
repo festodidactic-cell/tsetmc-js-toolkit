@@ -71,10 +71,10 @@ true == function ()
 
     var validCloseDays = 0;
     var validVolumeDays = 0;
+
     var closeCount3 = 0;
     var closeCount5 = 0;
     var closeCount10 = 0;
- 
 
     var risingTransitions = 0;
 
@@ -93,25 +93,25 @@ true == function ()
             [ih][i].PClosing;
 
 
-       if (i < 3)
-{
-    closeSum3 += closeValue;
-    closeCount3++;
-}
+        if (i < 3)
+        {
+            closeSum3 += closeValue;
+            closeCount3++;
+        }
 
 
-if (i < 5)
-{
-    closeSum5 += closeValue;
-    closeCount5++;
-}
+        if (i < 5)
+        {
+            closeSum5 += closeValue;
+            closeCount5++;
+        }
 
 
-if (i < 10)
-{
-    closeSum10 += closeValue;
-    closeCount10++;
-}
+        if (i < 10)
+        {
+            closeSum10 += closeValue;
+            closeCount10++;
+        }
 
 
         if (
@@ -130,14 +130,15 @@ if (i < 10)
     }
 
 
-  if (
-    validCloseDays < 10 ||
-    validVolumeDays < 15 ||
-    closeCount3 < 3 ||
-    closeCount5 < 5 ||
-    closeCount10 < 10
-)
-    return false;
+    if (
+        validCloseDays < 10 ||
+        validVolumeDays < 15 ||
+        closeCount3 < 3 ||
+        closeCount5 < 5 ||
+        closeCount10 < 10
+    )
+        return false;
+
 
     // ------------------------------------------------------------
     // Moving averages
@@ -229,7 +230,6 @@ if (i < 10)
     var swingScore = 0;
 
 
-    // Short-term structure above medium-term structure
     if (
         avgClose3 > avgClose5 &&
         avgClose5 > avgClose10
@@ -237,27 +237,22 @@ if (i < 10)
         swingScore += 30;
 
 
-    // Majority of recent closes are progressing upward
     if (risingTransitions >= 3)
         swingScore += 20;
 
 
-    // Current price remains above short-term mean
     if (pl >= avgClose5)
         swingScore += 15;
 
 
-    // Activity confirms the structure
     if (volumeRatio >= 1.10)
         swingScore += 15;
 
 
-    // Current real buyers are supportive
     if (buyerPower >= 1.15)
         swingScore += 10;
 
 
-    // Avoid heavily extended candidates
     if (
         priceExtension >= 0 &&
         priceExtension <= 7

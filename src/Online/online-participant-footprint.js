@@ -2,14 +2,14 @@
  TSETMC JS Toolkit
  Online Participant Footprint Detector
 
- Detects unusual participation patterns using:
+ Detects observable participation patterns using:
  - institutional participation
  - institutional net flow
  - real-buyer power
  - relative volume
  - intraday price acceptance
 
- The filter detects observable market-participant
+ The filter evaluates observable market-participant
  behaviour. It does not attempt to identify a
  specific market actor.
 */
@@ -19,14 +19,42 @@ true == function ()
 {
 
     // ------------------------------------------------------------
-    // Current client-type validation
+    // Current-session validation
     // ------------------------------------------------------------
 
     if (
-        (ct).Buy_CountI <= 0 ||
-        (ct).Sell_CountI <= 0 ||
-        (ct).Buy_I_Volume <= 0 ||
-        (ct).Sell_I_Volume <= 0
+        !Number.isFinite(Number(pl)) ||
+        !Number.isFinite(Number(py)) ||
+        !Number.isFinite(Number(pmin)) ||
+        !Number.isFinite(Number(pmax)) ||
+        !Number.isFinite(Number(tvol)) ||
+        Number(pl) <= 0 ||
+        Number(py) <= 0 ||
+        Number(pmin) <= 0 ||
+        Number(pmax) <= 0 ||
+        Number(tvol) <= 0 ||
+        Number(pmax) < Number(pmin)
+    )
+        return false;
+
+
+    // ------------------------------------------------------------
+    // Client-type validation
+    // ------------------------------------------------------------
+
+    if (
+        !Number.isFinite(Number((ct).Buy_CountI)) ||
+        !Number.isFinite(Number((ct).Sell_CountI)) ||
+        !Number.isFinite(Number((ct).Buy_I_Volume)) ||
+        !Number.isFinite(Number((ct).Sell_I_Volume)) ||
+        !Number.isFinite(Number((ct).Buy_N_Volume)) ||
+        !Number.isFinite(Number((ct).Sell_N_Volume)) ||
+        Number((ct).Buy_CountI) <= 0 ||
+        Number((ct).Sell_CountI) <= 0 ||
+        Number((ct).Buy_I_Volume) <= 0 ||
+        Number((ct).Sell_I_Volume) <= 0 ||
+        Number((ct).Buy_N_Volume) < 0 ||
+        Number((ct).Sell_N_Volume) < 0
     )
         return false;
 
@@ -36,57 +64,66 @@ true == function ()
     // ------------------------------------------------------------
 
     var avgRealBuy =
-        (ct).Buy_I_Volume /
-        (ct).Buy_CountI;
+        Number((ct).Buy_I_Volume) /
+        Number((ct).Buy_CountI);
 
 
     var avgRealSell =
-        (ct).Sell_I_Volume /
-        (ct).Sell_CountI;
+        Number((ct).Sell_I_Volume) /
+        Number((ct).Sell_CountI);
 
 
-    if (avgRealSell <= 0)
+    if (
+        !Number.isFinite(avgRealBuy) ||
+        !Number.isFinite(avgRealSell) ||
+        avgRealSell <= 0
+    )
         return false;
 
 
     var buyerPower =
-        avgRealBuy / avgRealSell;
+        avgRealBuy /
+        avgRealSell;
 
 
     // ------------------------------------------------------------
     // Institutional participation
     // ------------------------------------------------------------
 
+    var individualBuyVolume =
+        Number((ct).Buy_I_Volume);
+
+
+    var institutionalBuyVolume =
+        Number((ct).Buy_N_Volume);
+
+
+    var institutionalSellVolume =
+        Number((ct).Sell_N_Volume);
+
+
     var totalBuyVolume =
-        (ct).Buy_I_Volume +
-        (ct).Buy_N_Volume;
+        individualBuyVolume +
+        institutionalBuyVolume;
 
 
-    var institutionalBuyShare = 0;
+    if (totalBuyVolume <= 0)
+        return false;
 
 
-    if (totalBuyVolume > 0)
-    {
-        institutionalBuyShare =
-            (ct).Buy_N_Volume /
-            totalBuyVolume;
-    }
+    var institutionalBuyShare =
+        institutionalBuyVolume /
+        totalBuyVolume;
 
 
     var institutionalNetFlow =
-        (ct).Buy_N_Volume -
-        (ct).Sell_N_Volume;
+        institutionalBuyVolume -
+        institutionalSellVolume;
 
 
-    var institutionalNetRatio = 0;
-
-
-    if (tvol > 0)
-    {
-        institutionalNetRatio =
-            institutionalNetFlow /
-            tvol;
-    }
+    var institutionalNetRatio =
+        institutionalNetFlow /
+        Number(tvol);
 
 
     // ------------------------------------------------------------
@@ -101,17 +138,20 @@ true == function ()
     {
 
         if (
-            typeof [ih][i] != "undefined" &&
-            [ih][i].QTotTran5J > 0
+            typeof [ih][i] == "undefined" ||
+            !Number.isFinite(
+                Number([ih][i].QTotTran5J)
+            ) ||
+            Number([ih][i].QTotTran5J) <= 0
         )
-        {
+            continue;
 
-            volumeSum +=
-                [ih][i].QTotTran5J;
 
-            validDays++;
+        volumeSum +=
+            Number([ih][i].QTotTran5J);
 
-        }
+
+        validDays++;
 
     }
 
@@ -120,16 +160,21 @@ true == function ()
         return false;
 
 
-    var avgVolume20 =
-        volumeSum / validDays;
+    var avgHistoricalVolume =
+        volumeSum /
+        validDays;
 
 
-    if (avgVolume20 <= 0)
+    if (
+        !Number.isFinite(avgHistoricalVolume) ||
+        avgHistoricalVolume <= 0
+    )
         return false;
 
 
     var volumeRatio =
-        tvol / avgVolume20;
+        Number(tvol) /
+        avgHistoricalVolume;
 
 
     // ------------------------------------------------------------
@@ -137,7 +182,8 @@ true == function ()
     // ------------------------------------------------------------
 
     var dayRange =
-        pmax - pmin;
+        Number(pmax) -
+        Number(pmin);
 
 
     var pricePosition = 0.5;
@@ -146,19 +192,27 @@ true == function ()
     if (dayRange > 0)
     {
         pricePosition =
-            (pl - pmin) /
+            (
+                Number(pl) -
+                Number(pmin)
+            ) /
             dayRange;
     }
 
 
-    var dayChange = 0;
+    if (pricePosition < 0)
+        pricePosition = 0;
 
 
-    if (py > 0)
-    {
-        dayChange =
-            ((pl - py) / py) * 100;
-    }
+    if (pricePosition > 1)
+        pricePosition = 1;
+
+
+    var dayChange =
+        (
+            (Number(pl) - Number(py)) /
+            Number(py)
+        ) * 100;
 
 
     // ------------------------------------------------------------
